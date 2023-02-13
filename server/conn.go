@@ -60,18 +60,10 @@ func (c *conn) SendLen(obj []byte) (int, error) {
 	return c.infoStream.Write(len_b)
 }
 
-func (c *conn) SendRtp(pkt RTPPacket) (int, error) {
-	_, err := c.SendLen(pkt.buffer)
+func (c *conn) SendRtp(pkt []byte) (int, error) {
+	_, err := c.SendLen(pkt)
 	if err != nil {
 		panic(err)
 	}
-	_, err = c.dataStream.Write(pkt.buffer)
-	if err != nil {
-		panic(err)
-	}
-	_, err = c.SendLen(pkt.ekt)
-	if err != nil {
-		panic(err)
-	}
-	return c.dataStream.Write(pkt.ekt)
+	return c.dataStream.Write(pkt)
 }

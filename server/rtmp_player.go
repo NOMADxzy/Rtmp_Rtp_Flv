@@ -47,13 +47,7 @@ func (handler *TestOutboundConnHandler) OnClosed(conn rtmp.Conn) {
 }
 
 func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp.Message) {
-	//fmt.Println("recv message size: ", message.Size)
-	if len(message.Buf.Bytes()) < 1000 {
-		new_pkt := NewRTPPacket(message.Buf.Bytes(), int8(9), CUR_SEQ, uint32(2), uint32(3))
-		rtp_queue.Enqueue(new_pkt, CUR_SEQ)
-		CUR_SEQ += uint16(1)
-		fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
-	}
+	fmt.Println("--------------------------------")
 
 	tagdata := message.Buf.Bytes()
 	var flv_tag []byte
@@ -95,6 +89,12 @@ func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp
 		if err != nil {
 			return
 		}
+
+		rtp_buf := make([]byte, rp.InUse()) //复制一份放入map之中
+		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
+		rtp_queue.Enqueue(rtp_buf, rp.Sequence())
+		//fmt.Println(rtp_buf)
+		fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
 		rp.FreePacket() //释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
@@ -111,12 +111,17 @@ func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp
 			if err != nil {
 				return
 			}
+
+			rtp_buf := make([]byte, rp.InUse())
+			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
+			rtp_queue.Enqueue(rtp_buf, rp.Sequence())
+			fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
 			rp.FreePacket() //释放内存
 		}
 	}
 
 	fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(tagdata)+11, ",rtp timestamp: ", timestamp)
-	fmt.Println(flv_tag)
+	//fmt.Println(flv_tag)
 	flvFile.WriteTagDirect(flv_tag)
 
 }
@@ -208,8 +213,9 @@ func main() {
 
 			//发送rtp数据包给客户
 			pkt := rtp_queue.GetPkt(seq)
+			//fmt.Println(pkt)
 			if pkt != nil {
-				_, err = conn.SendRtp(*pkt)
+				_, err = conn.SendRtp(pkt)
 				if err != nil {
 					panic(err)
 				}
