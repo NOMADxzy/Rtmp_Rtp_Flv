@@ -18,4 +18,6 @@ const (
 	DURATION_OFFSET     = 53
 	HEADER_LEN          = 13
 	MAX_RTP_PAYLOAD_LEN = 1000
+	RTMP_URL            = "rtmp://127.0.0.1:1935/flv_test"
+	RTMP_STREAM         = "test"
 )

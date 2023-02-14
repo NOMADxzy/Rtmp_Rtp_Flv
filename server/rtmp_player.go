@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	url        *string = flag.String("URL", "rtmp://127.0.0.1:1935/flv_test", "The rtmp url to connect.")
-	streamName *string = flag.String("Stream", "test", "Stream name to play.")
+	url        *string = flag.String("URL", RTMP_URL, "The rtmp url to connect.")
+	streamName *string = flag.String("Stream", RTMP_STREAM, "Stream name to play.")
 	dumpFlv    *string = flag.String("DumpFLV", "./recv.flv", "Dump FLV into file.")
 )
 
