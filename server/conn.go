@@ -49,6 +49,9 @@ func (c *conn) ReadSeq(seq *uint16) (int, error) {
 	}
 	seq_b := make([]byte, 2)
 	_, err := c.infoStream.Read(seq_b)
+	if err != nil {
+		return -1, err
+	}
 	*seq = binary.BigEndian.Uint16(seq_b)
 	return 0, err
 

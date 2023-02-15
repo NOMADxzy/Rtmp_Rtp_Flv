@@ -122,6 +122,9 @@ func (q *queue) Dequeue() interface{} {
 }
 
 func (q *queue) GetPkt(targetSeq uint16) []byte {
+	q.m.RLock()
+	defer q.m.RUnlock()
+
 	front := q.queue.Front().Value.(uint16)
 	back := q.queue.Back().Value.(uint16)
 	if targetSeq < front || targetSeq > back { //不在队列中

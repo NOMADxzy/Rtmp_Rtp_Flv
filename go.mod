@@ -7,6 +7,7 @@ require (
 	github.com/lucas-clemente/quic-go v0.14.0
 	github.com/onsi/ginkgo v1.7.0
 	github.com/onsi/gomega v1.4.3
+	github.com/zhangjunfang/livego v0.0.0-20180326092835-c4faa1080980
 	github.com/zhangpeihao/goamf v0.0.0-20140409082417-3ff2c19514a8 // indirect
 	github.com/zhangpeihao/goflv v0.0.0-20140409083800-f2c8a1d6c9e1
 	github.com/zhangpeihao/gortmp v0.0.0-20161114025007-d5f2189e629f

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"math/rand"
 	"net/rtp"
 	"os"
 	"time"
@@ -47,7 +48,7 @@ func (handler *TestOutboundConnHandler) OnClosed(conn rtmp.Conn) {
 }
 
 func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp.Message) {
-	fmt.Println("--------------------------------")
+	//fmt.Println("--------------------------------")
 
 	tagdata := message.Buf.Bytes()
 	var flv_tag []byte
@@ -85,16 +86,13 @@ func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp
 		rp = rsLocal.NewDataPacket(uint32(timestamp))
 		rp.SetMarker(true)
 		rp.SetPayload(flv_tag)
-		_, err := rsLocal.WriteData(rp)
-		if err != nil {
-			return
-		}
+		sendPacket(rp)
 
 		rtp_buf := make([]byte, rp.InUse()) //复制一份放入map之中
 		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
 		rtp_queue.Enqueue(rtp_buf, rp.Sequence())
 		//fmt.Println(rtp_buf)
-		fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
+		//fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
 		rp.FreePacket() //释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
@@ -107,20 +105,17 @@ func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp
 			} else {
 				rp.SetPayload(flv_tag[i*MAX_RTP_PAYLOAD_LEN:])
 			}
-			_, err := rsLocal.WriteData(rp)
-			if err != nil {
-				return
-			}
+			sendPacket(rp)
 
 			rtp_buf := make([]byte, rp.InUse())
 			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
 			rtp_queue.Enqueue(rtp_buf, rp.Sequence())
-			fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
+			//fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
 			rp.FreePacket() //释放内存
 		}
 	}
 
-	fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(tagdata)+11, ",rtp timestamp: ", timestamp)
+	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(tagdata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
 	flvFile.WriteTagDirect(flv_tag)
 
@@ -133,6 +128,16 @@ func (handler *TestOutboundConnHandler) OnReceivedRtmpCommand(conn rtmp.Conn, co
 func (handler *TestOutboundConnHandler) OnStreamCreated(conn rtmp.OutboundConn, stream rtmp.OutboundStream) {
 	fmt.Printf("Stream created: %d\n", stream.ID())
 	createStreamChan <- stream
+}
+
+func sendPacket(rp *rtp.DataPacket) {
+	r := rand.Intn(100)
+	if float64(r)/100.0 >= PACKET_LOSS_RATE {
+		_, err := rsLocal.WriteData(rp)
+		if err != nil {
+			return
+		}
+	}
 }
 
 func main() {
@@ -198,18 +203,19 @@ func main() {
 	}
 
 	go func() {
+		fmt.Println("quic线程启动")
 		conn := initialQUIC()
 		var seq uint16
 		for {
+			//fmt.Println("quic线程启动，等待重传序列号")
 
 			_, err = conn.ReadSeq(&seq)
 			if err != nil {
-				panic(err)
+				//避免长时间收不到重传请求导致quic停止
+				time.Sleep(time.Second)
+				continue
 			}
-			//msg := make([]byte, msg_len+10)
-			//
-			//_, err = conn.Read(msg)
-			fmt.Println("seq: ", seq)
+			fmt.Println("收到重传请求，seq: ", seq)
 
 			//发送rtp数据包给客户
 			pkt := rtp_queue.GetPkt(seq)
@@ -235,7 +241,7 @@ func main() {
 			// Set Buffer Length
 
 		case <-time.After(1 * time.Second):
-			fmt.Printf("Audio size: %d bytes; Vedio size: %d bytes\n", audioDataSize, videoDataSize)
+			//fmt.Printf("Audio size: %d bytes; Vedio size: %d bytes\n", audioDataSize, videoDataSize)
 		}
 	}
 }
