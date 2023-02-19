@@ -11,7 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/zhangpeihao/goflv"
 	rtmp "github.com/zhangpeihao/gortmp"
 	"github.com/zhangpeihao/log"
 )
@@ -34,7 +33,7 @@ var obConn rtmp.OutboundConn
 var createStreamChan chan rtmp.OutboundStream
 var videoDataSize int64
 var audioDataSize int64
-var flvFile *flv.File
+var flvFile *File
 var status uint
 
 func (handler *TestOutboundConnHandler) OnStatus(conn rtmp.OutboundConn) {
@@ -165,7 +164,7 @@ func main() {
 	// Create flv file
 	if len(*dumpFlv) > 0 {
 		var err error
-		flvFile, err = flv.CreateFile(*dumpFlv)
+		flvFile, err = CreateFile(*dumpFlv)
 		if err != nil {
 			fmt.Println("Create FLV dump file error:", err)
 			return
