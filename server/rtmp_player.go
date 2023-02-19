@@ -21,9 +21,9 @@ const (
 )
 
 var (
-	url        *string = flag.String("URL", RTMP_URL, "The rtmp url to connect.")
-	streamName *string = flag.String("Stream", RTMP_STREAM, "Stream name to play.")
-	dumpFlv    *string = flag.String("DumpFLV", "./recv.flv", "Dump FLV into file.")
+	url        = flag.String("URL", RTMP_URL, "The rtmp url to connect.")
+	streamName = flag.String("Stream", RTMP_STREAM, "Stream name to play.")
+	dumpFlv    = flag.String("DumpFLV", "./recv.flv", "Dump FLV into file.")
 )
 
 type TestOutboundConnHandler struct {
@@ -202,7 +202,7 @@ func main() {
 	}
 
 	go func() {
-		fmt.Println("quic线程启动")
+		fmt.Println("quic协程启动")
 		conn := initialQUIC()
 		var seq uint16
 		for {
@@ -239,8 +239,8 @@ func main() {
 			}
 			// Set Buffer Length
 
-		case <-time.After(1 * time.Second):
-			//fmt.Printf("Audio size: %d bytes; Vedio size: %d bytes\n", audioDataSize, videoDataSize)
+		case <-time.After(5 * time.Second):
+			fmt.Printf("Audio size: %d bytes; Vedio size: %d bytes\n", audioDataSize, videoDataSize)
 		}
 	}
 }
