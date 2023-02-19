@@ -116,7 +116,10 @@ func (handler *TestOutboundConnHandler) OnReceived(conn rtmp.Conn, message *rtmp
 
 	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(tagdata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
-	flvFile.WriteTagDirect(flv_tag)
+	err := flvFile.WriteTagDirect(flv_tag)
+	if err != nil {
+		return
+	}
 
 }
 
@@ -130,9 +133,30 @@ func (handler *TestOutboundConnHandler) OnStreamCreated(conn rtmp.OutboundConn, 
 }
 
 func sendPacket(rp *rtp.DataPacket) {
+	if USE_MULTICAST { //组播
+		sendPacketmulticast(rp)
+	} else { //单播
+		r := rand.Intn(100)
+		if float64(r)/100.0 >= PACKET_LOSS_RATE {
+			_, err := rsLocal.WriteData(rp)
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+func sendPacketmulticast(rp *rtp.DataPacket) { //将rtp包发送到组播地址组播
+	var err error
+	if udpConn == nil {
+		udpConn, err = NewBroadcaster(MULTICAST_ADDRASS)
+		if err != nil {
+			panic(err)
+		}
+	}
 	r := rand.Intn(100)
 	if float64(r)/100.0 >= PACKET_LOSS_RATE {
-		_, err := rsLocal.WriteData(rp)
+		_, err := udpConn.Write(rp.Buffer()[:rp.InUse()])
 		if err != nil {
 			return
 		}
@@ -149,7 +173,6 @@ func main() {
 	fmt.Printf("rtmp:%s stream:%s flv:%s\r\n", *url, *streamName, *dumpFlv)
 	l := log.NewLogger(".", "player", nil, 60, 3600*24, true)
 	rtmp.InitLogger(l)
-	initialize()
 	defer l.Close()
 
 	//rtpsession初始化

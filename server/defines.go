@@ -20,5 +20,7 @@ const (
 	MAX_RTP_PAYLOAD_LEN = 1000
 	RTMP_URL            = "rtmp://127.0.0.1:1936/flv_test"
 	RTMP_STREAM         = "test"
-	PACKET_LOSS_RATE    = 0.05
+	PACKET_LOSS_RATE    = 0.00
+	MULTICAST_ADDRASS   = "239.0.0.0:5222"
+	USE_MULTICAST       = true
 )
