@@ -180,9 +180,9 @@ func main() {
 	rsLocal = rtp.NewSession(tpLocal, tpLocal)
 	rsLocal.AddRemote(&rtp.Address{remote.IP, remotePort, remotePort + 1, remoteZone})
 	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{local.IP, localPort, localPort + 1, localZone}, 1020304, CUR_SEQ)
-	rsLocal.SsrcStreamOutForIndex(strLocalIdx).SetPayloadType(9)
-	rsLocal.StartSession()
-	defer rsLocal.CloseSession()
+	rsLocal.SsrcStreamOutForIndex(strLocalIdx).SetPayloadType(96)
+	//rsLocal.StartSession()
+	//defer rsLocal.CloseSession()
 
 	// Create flv file
 	if len(*dumpFlv) > 0 {

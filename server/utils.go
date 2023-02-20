@@ -40,7 +40,7 @@ func initialQUIC() *conn {
 }
 
 var rtp_queue = newQueue(50000)
-var CUR_SEQ = uint16(4171)
+var CUR_SEQ = uint16(65000)
 var FLV_SEQ = uint32(0)
 
 //func main() {
