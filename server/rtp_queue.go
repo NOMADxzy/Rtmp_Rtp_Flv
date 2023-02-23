@@ -127,8 +127,16 @@ func (q *queue) GetPkt(targetSeq uint16) []byte {
 
 	front := q.queue.Front().Value.(uint16)
 	back := q.queue.Back().Value.(uint16)
-	if targetSeq < front || targetSeq > back { //不在队列中
-		return nil
+	if targetSeq < front || targetSeq > back { //不在队列中,或者rtp序号发生了循环
+		if front < back {
+			return nil
+		} else {
+			val, f := q.RtpMap.Get(targetSeq)
+			if f {
+				return val.([]byte)
+			}
+			return nil
+		}
 	} else {
 		val, f := q.RtpMap.Get(targetSeq)
 		if f {
