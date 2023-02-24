@@ -18,10 +18,9 @@ const (
 	DURATION_OFFSET     = 53
 	HEADER_LEN          = 13
 	MAX_RTP_PAYLOAD_LEN = 1000
-	RTMP_URL            = "rtmp://127.0.0.1:1936/flv_test"
-	RTMP_STREAM         = "test"
-	RTMP_STREAM1        = "test1"
-	PACKET_LOSS_RATE    = 0.02
+	PACKET_LOSS_RATE    = 0.01
 	MULTICAST_ADDRASS   = "239.0.0.0:5222"
+	QUIC_ADDR           = "localhost:4242"
 	USE_MULTICAST       = true
+	RTP_INITIAL_SEQ     = uint16(65000)
 )

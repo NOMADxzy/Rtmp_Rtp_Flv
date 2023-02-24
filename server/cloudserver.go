@@ -30,36 +30,34 @@ type StreamInfo struct {
 	SSRC        uint32
 	channel     string
 	flvFile     *File
+	timestamp   uint32
+	RtpQueue    *queue
 }
 
+//创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
 func addChannel(channel string) *StreamInfo {
 	SSRC += uint32(1)
 	//创建SSRC流
-	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{local.IP, localPort, localPort + 1, localZone}, SSRC, CUR_SEQ)
+	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{local.IP, localPort, localPort + 1, localZone}, SSRC, RTP_INITIAL_SEQ)
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
 	ssrcStream.SetPayloadType(9)
 	//创建录制文件
 	flvFile := createFlvFile(channel)
+
+	//创建rtp缓存队列
+	var rtpQueue = newQueue(5000)
 
 	streamInfo := &StreamInfo{
 		strLocalIdx: strLocalIdx,
 		SSRC:        SSRC,
 		channel:     channel,
 		flvFile:     flvFile,
+		RtpQueue:    rtpQueue,
 	}
 
-	ChannelMap.Put(channel, streamInfo)
+	ChannelMap.Put(SSRC, streamInfo)
 
 	return streamInfo
-}
-
-func createFlvFile(channel string) *File {
-	flvFile, err := CreateFile("./" + channel + ".flv")
-	if err != nil {
-		fmt.Println("Create FLV dump file error:", err)
-		panic(err)
-	}
-	return flvFile
 }
 
 type MyMessageHandler struct{}
@@ -75,7 +73,7 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 //自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	var streamInfo *StreamInfo
-	val, f := ChannelMap.Get(s.Channel())
+	val, f := ChannelMap.Get(s.Ssrc())
 	if !f {
 		streamInfo = addChannel(s.Channel())
 	} else {
@@ -84,8 +82,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 
 	tagdata := message.Data
 	var flv_tag []byte
-	timestamp := FLV_SEQ
-	FLV_SEQ += uint32(1)
+	streamInfo.timestamp += uint32(1)
 
 	if message.IsVideo {
 		//创建flv
@@ -112,21 +109,21 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	flv_tag_len := len(flv_tag)
 	var rp *rtp.DataPacket
 	if flv_tag_len <= MAX_RTP_PAYLOAD_LEN {
-		rp = rsLocal.NewDataPacketForStream(streamInfo.strLocalIdx, timestamp)
+		rp = rsLocal.NewDataPacketForStream(streamInfo.strLocalIdx, streamInfo.timestamp)
 		rp.SetMarker(true)
 		rp.SetPayload(flv_tag)
 		sendPacket(rp)
 
 		rtp_buf := make([]byte, rp.InUse()) //复制一份放入map之中
 		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-		rtp_queue.Enqueue(rtp_buf, rp.Sequence())
+		streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
 		//fmt.Println(rtp_buf)
 		//fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
 		rp.FreePacket() //释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
-			rp = rsLocal.NewDataPacketForStream(streamInfo.strLocalIdx, timestamp)
+			rp = rsLocal.NewDataPacketForStream(streamInfo.strLocalIdx, streamInfo.timestamp)
 			last_slice := i == slice_num-1
 			rp.SetMarker(last_slice)
 			if !last_slice {
@@ -138,7 +135,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 
 			rtp_buf := make([]byte, rp.InUse())
 			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-			rtp_queue.Enqueue(rtp_buf, rp.Sequence())
+			streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
 			//fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
 			rp.FreePacket() //释放内存
 		}
@@ -269,22 +266,36 @@ func showRecvDataSize() {
 
 //启动quic服务
 func startQuic() {
-	fmt.Println("quic协程启动")
+	fmt.Println("quic server started on ", QUIC_ADDR)
 	conn := initialQUIC()
+
+	//通过channel和seq找到所需的rtp包
 	var seq uint16
+	var ssrc uint32
+
 	for {
 		//fmt.Println("quic线程启动，等待重传序列号")
 
-		_, err := conn.ReadSeq(&seq)
+		err := conn.ReadSsrc(&ssrc)
 		if err != nil {
-			//避免长时间收不到重传请求导致quic停止
+			//长时间收不到重传请求会触发err
 			time.Sleep(time.Second)
 			continue
 		}
+
+		_, err = conn.ReadSeq(&seq)
+		if err != nil {
+			panic(err)
+		}
+
 		fmt.Println("收到重传请求，seq: ", seq)
 
 		//发送rtp数据包给客户
-		pkt := rtp_queue.GetPkt(seq)
+		val, f := ChannelMap.Get(ssrc)
+		if !f {
+			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
+		}
+		pkt := val.(*StreamInfo).RtpQueue.GetPkt(seq)
 		//fmt.Println(pkt)
 		if pkt != nil {
 			_, err = conn.SendRtp(pkt)

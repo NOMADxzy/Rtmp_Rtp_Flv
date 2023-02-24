@@ -39,9 +39,14 @@ func initialQUIC() *conn {
 	return conn
 }
 
-var rtp_queue = newQueue(50000)
-var CUR_SEQ = uint16(65000)
-var FLV_SEQ = uint32(0)
+func createFlvFile(channel string) *File {
+	flvFile, err := CreateFile("./" + channel + ".flv")
+	if err != nil {
+		fmt.Println("Create FLV dump file error:", err)
+		panic(err)
+	}
+	return flvFile
+}
 
 //func main() {
 //	// start the server

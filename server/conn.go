@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -57,6 +58,27 @@ func (c *conn) ReadSeq(seq *uint16) (int, error) {
 
 	//return io.ReadFull(c.dataStream,b)
 }
+
+func (c *conn) ReadSsrc(ssrc *uint32) error {
+	if c.infoStream == nil {
+		var err error
+		c.infoStream, err = c.session.AcceptStream(context.Background())
+		// TODO: check stream id
+		if err != nil {
+			return err
+		}
+	}
+	ssrc_b := make([]byte, 4)
+	_, err := c.infoStream.Read(ssrc_b)
+	if err != nil {
+		return errors.New("read ssrc failed")
+	}
+	*ssrc = binary.BigEndian.Uint32(ssrc_b)
+	return err
+
+	//return io.ReadFull(c.dataStream,b)
+}
+
 func (c *conn) SendLen(obj []byte) (int, error) {
 	len_b := make([]byte, 2)
 	binary.BigEndian.PutUint16(len_b, uint16(len(obj)))
