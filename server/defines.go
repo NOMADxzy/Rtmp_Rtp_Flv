@@ -18,7 +18,7 @@ const (
 	DURATION_OFFSET     = 53
 	HEADER_LEN          = 13
 	MAX_RTP_PAYLOAD_LEN = 1000
-	PACKET_LOSS_RATE    = 0.01
+	PACKET_LOSS_RATE    = 0.001
 	MULTICAST_ADDRASS   = "239.0.0.0:5222"
 	QUIC_ADDR           = "localhost:4242"
 	USE_MULTICAST       = true

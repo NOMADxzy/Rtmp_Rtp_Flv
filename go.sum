@@ -1,6 +1,10 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/NOMADxzy/Livego v0.0.2 h1:bOI/BMwRALRc4a6VTBwer83m3BzpmUdhnLutZEMWr6M=
+github.com/NOMADxzy/Livego v0.0.2/go.mod h1:Ss9oHVTwsRL+VCvVTSrcExxVO4t9k9k86JtfDdXv3+g=
+github.com/NOMADxzy/livego v1.0.0 h1:ipZV1W+2CrUthFpvWPUS1Vv3QyO2P5ra8STP9VNB31E=
+github.com/NOMADxzy/livego v1.0.0/go.mod h1:d3cR3AekJOYvNuHTK+a/pcvlAzQg4YwDIJaXi720IRU=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/alangpierce/go-forceexport v0.0.0-20160317203124-8f1d6941cd75 h1:3ILjVyslFbc4jl1w5TWuvvslFD/nDfR2H8tVaMVLrEY=
 github.com/alangpierce/go-forceexport v0.0.0-20160317203124-8f1d6941cd75/go.mod h1:uAXEEpARkRhCZfEvy/y0Jcc888f9tHCc1W7/UeEtreE=

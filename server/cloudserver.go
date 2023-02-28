@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/emirpasic/gods/lists/arraylist"
 	"github.com/gwuhaolin/livego/av"
 	"github.com/gwuhaolin/livego/configure"
 	"github.com/gwuhaolin/livego/protocol/api"
@@ -24,6 +25,7 @@ var audioDataSize int64
 var VERSION = "master"
 var SSRC = uint32(1020303)
 var ChannelMap *hashmap.Map
+var Channels *arraylist.List
 
 type StreamInfo struct {
 	strLocalIdx uint32
@@ -56,6 +58,7 @@ func addChannel(channel string) *StreamInfo {
 	}
 
 	ChannelMap.Put(SSRC, streamInfo)
+	Channels.Add(channel)
 
 	return streamInfo
 }
@@ -153,8 +156,8 @@ func sendPacket(rp *rtp.DataPacket) {
 	if USE_MULTICAST { //组播
 		sendPacketmulticast(rp)
 	} else { //单播
-		r := rand.Intn(100)
-		if float64(r)/100.0 >= PACKET_LOSS_RATE {
+		r := rand.Intn(1000)
+		if float64(r)/1000.0 >= PACKET_LOSS_RATE {
 			_, err := rsLocal.WriteData(rp)
 			if err != nil {
 				return
@@ -171,8 +174,8 @@ func sendPacketmulticast(rp *rtp.DataPacket) { //将rtp包发送到组播地址�
 			panic(err)
 		}
 	}
-	r := rand.Intn(100)
-	if float64(r)/100.0 >= PACKET_LOSS_RATE {
+	r := rand.Intn(1000)
+	if float64(r)/1000.0 >= PACKET_LOSS_RATE {
 		_, err := udpConn.Write(rp.Buffer()[:rp.InUse()])
 		if err != nil {
 			return
@@ -317,11 +320,7 @@ func main() {
 	}()
 
 	log.Infof(`
-     _     _            ____       
-    | |   (_)_   _____ / ___| ___  
-    | |   | \ \ / / _ \ |  _ / _ \ 
-    | |___| |\ V /  __/ |_| | (_) |
-    |_____|_| \_/ \___|\____|\___/ 
+    (╯°口°)╯( ┴—┴ Rtmp Http FLv （┬_┬）
         version: %s
 	`, VERSION)
 
@@ -342,6 +341,8 @@ func main() {
 			}
 		}
 	}()
+
+	Channels = arraylist.New()
 
 	myMessageHandler := &MyMessageHandler{}
 	stream := rtmp.NewRtmpStream(myMessageHandler)
