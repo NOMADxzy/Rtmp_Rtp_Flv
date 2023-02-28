@@ -8,9 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"github.com/lucas-clemente/quic-go"
-	//quicconn "github.com/marten-seemann/quic-conn"
-
+	"github.com/quic-go/quic-go"
 	"math/big"
 	"time"
 )

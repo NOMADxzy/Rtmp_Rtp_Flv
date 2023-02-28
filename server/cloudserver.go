@@ -36,7 +36,7 @@ type StreamInfo struct {
 	RtpQueue    *queue
 }
 
-//创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
+// 创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
 func addChannel(channel string) *StreamInfo {
 	SSRC += uint32(1)
 	//创建SSRC流
@@ -65,7 +65,7 @@ func addChannel(channel string) *StreamInfo {
 
 type MyMessageHandler struct{}
 
-//自定义流创建方法
+// 自定义流创建方法
 func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	SSRC := addChannel(stream.Channel()).SSRC
 	stream.SetSsrc(SSRC)
@@ -73,7 +73,7 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 
 }
 
-//自定义消息处理方法
+// 自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	var streamInfo *StreamInfo
 	val, f := ChannelMap.Get(s.Ssrc())
@@ -259,7 +259,7 @@ func init() {
 	})
 }
 
-//打印历史信息
+// 打印历史信息
 func showRecvDataSize() {
 	for {
 		_ = <-time.After(5 * time.Second)
@@ -267,7 +267,7 @@ func showRecvDataSize() {
 	}
 }
 
-//启动quic服务
+// 启动quic服务
 func startQuic() {
 	fmt.Println("quic server started on ", QUIC_ADDR)
 	conn := initialQUIC()
@@ -297,6 +297,7 @@ func startQuic() {
 		val, f := ChannelMap.Get(ssrc)
 		if !f {
 			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
+			continue
 		}
 		pkt := val.(*StreamInfo).RtpQueue.GetPkt(seq)
 		//fmt.Println(pkt)
@@ -307,6 +308,10 @@ func startQuic() {
 			}
 		} else {
 			fmt.Println("quic无法重传，没有该包，seq：", seq)
+			_, err := conn.SendRtp(nil)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }
