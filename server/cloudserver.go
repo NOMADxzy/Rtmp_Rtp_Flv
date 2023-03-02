@@ -26,6 +26,7 @@ var VERSION = "master"
 var SSRC = uint32(1020303)
 var ChannelMap *hashmap.Map
 var Channels *arraylist.List
+var UdpConns *arraylist.List
 
 type StreamInfo struct {
 	strLocalIdx uint32
@@ -42,7 +43,7 @@ func addChannel(channel string) *StreamInfo {
 	//创建SSRC流
 	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{local.IP, localPort, localPort + 1, localZone}, SSRC, RTP_INITIAL_SEQ)
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
-	ssrcStream.SetPayloadType(9)
+	ssrcStream.SetPayloadType(77)
 	//创建录制文件
 	flvFile := createFlvFile(channel)
 
@@ -152,33 +153,27 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	}
 }
 
+//	func sendPacket(rp *rtp.DataPacket) {
+//		if USE_MULTICAST { //组播
+//			sendPacketmulticast(rp)
+//		} else { //单播
+//			r := rand.Intn(1000)
+//			if float64(r)/1000.0 >= PACKET_LOSS_RATE {
+//				_, err := rsLocal.WriteData(rp)
+//				if err != nil {
+//					return
+//				}
+//			}
+//		}
+//	}
 func sendPacket(rp *rtp.DataPacket) {
-	if USE_MULTICAST { //组播
-		sendPacketmulticast(rp)
-	} else { //单播
+	for _, udpConn := range UdpConns.Values() {
 		r := rand.Intn(1000)
 		if float64(r)/1000.0 >= PACKET_LOSS_RATE {
-			_, err := rsLocal.WriteData(rp)
+			_, err := udpConn.(*net.UDPConn).Write(rp.Buffer()[:rp.InUse()])
 			if err != nil {
 				return
 			}
-		}
-	}
-}
-
-func sendPacketmulticast(rp *rtp.DataPacket) { //将rtp包发送到组播地址组播
-	var err error
-	if udpConn == nil {
-		udpConn, err = NewBroadcaster(MULTICAST_ADDRASS)
-		if err != nil {
-			panic(err)
-		}
-	}
-	r := rand.Intn(1000)
-	if float64(r)/1000.0 >= PACKET_LOSS_RATE {
-		_, err := udpConn.Write(rp.Buffer()[:rp.InUse()])
-		if err != nil {
-			return
 		}
 	}
 }
@@ -316,6 +311,18 @@ func startQuic() {
 	}
 }
 
+func initUdpConns() {
+	UdpConns = arraylist.New()
+	for i := 0; i < len(CLIENT_ADDRESS_LIST); i++ {
+		addr := CLIENT_ADDRESS_LIST[i]
+		newConn, err := NewUDPConn(addr)
+		if err != nil {
+			panic(err)
+		}
+		UdpConns.Add(newConn)
+	}
+}
+
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -330,11 +337,10 @@ func main() {
 	`, VERSION)
 
 	tpLocal, _ := rtp.NewTransportUDP(local, localPort, localZone)
-	rsLocal = rtp.NewSession(tpLocal, tpLocal)
-	rsLocal.AddRemote(&rtp.Address{remote.IP, remotePort, remotePort + 1, remoteZone})
-
-	rsLocal.StartSession()
-	defer rsLocal.CloseSession()
+	rsLocal = rtp.NewSession(tpLocal, tpLocal) //用来创建rtp包
+	//rsLocal.AddRemote(&rtp.Address{remote.IP, remotePort, remotePort + 1, remoteZone})
+	//rsLocal.StartSession()
+	//defer rsLocal.CloseSession()
 
 	// close flv file
 	defer func() {
@@ -348,11 +354,11 @@ func main() {
 	}()
 
 	Channels = arraylist.New()
-
 	myMessageHandler := &MyMessageHandler{}
 	stream := rtmp.NewRtmpStream(myMessageHandler)
 	ChannelMap = hashmap.New()
 
+	initUdpConns()
 	go showRecvDataSize()
 	go startQuic()
 

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/quic-go/quic-go"
 	"math/big"
+	"net"
 	"time"
 )
 
@@ -46,45 +47,20 @@ func createFlvFile(channel string) *File {
 	return flvFile
 }
 
-//func main() {
-//	// start the server
-//	go func() {
-//
-//
-//		var seq uint16
-//
-//		_, err = conn.ReadSeq(&seq)
-//		if err != nil {
-//			panic(err)
-//		}
-//		//msg := make([]byte, msg_len+10)
-//		//
-//		//_, err = conn.Read(msg)
-//		fmt.Println("seq: ", seq)
-//
-//		//发送rtp数据包给客户
-//
-//		//rtp := []byte("Rtp data...")
-//		payload := make([]byte, 16)
-//		for i := range payload {
-//			payload[i] = byte(i)
-//		}
-//
-//		rtp_queue := newQueue(10)
-//		for i := uint16(0); i < uint16(12); i++ {
-//			new_pkt := NewRTPPacket(payload, int8(2), uint16(1), uint32(2), uint32(3))
-//			rtp_queue.Enqueue(new_pkt, seq+i-uint16(3))
-//		}
-//
-//		pkt := rtp_queue.GetPkt(seq)
-//		_, err = conn.SendRtp(*pkt)
-//		if err != nil {
-//			panic(err)
-//		}
-//	}()
-//
-//	time.Sleep(time.Hour)
-//}
+func NewUDPConn(address string) (*net.UDPConn, error) {
+	addr, err := net.ResolveUDPAddr("udp4", address)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.DialUDP("udp4", nil, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+
+}
 
 func generateTLSConfig() (*tls.Config, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)

@@ -1,5 +1,10 @@
 package main
 
+import (
+	"net"
+	"net/rtp"
+)
+
 var (
 	HEADER_BYTES = []byte{'F', 'L', 'V', 0x01, 0x05, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00,
 		0x12, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 11
@@ -11,6 +16,7 @@ var (
 		0x00, 0x00, 0x00, 0x33}
 )
 
+// 常量
 const (
 	AUDIO_TAG           = byte(0x08)
 	VIDEO_TAG           = byte(0x09)
@@ -18,9 +24,18 @@ const (
 	DURATION_OFFSET     = 53
 	HEADER_LEN          = 13
 	MAX_RTP_PAYLOAD_LEN = 1000
-	PACKET_LOSS_RATE    = 0.001
-	MULTICAST_ADDRASS   = "239.0.0.0:5222"
-	QUIC_ADDR           = "localhost:4242"
-	USE_MULTICAST       = true
 	RTP_INITIAL_SEQ     = uint16(65000)
+)
+
+// rtp相关
+var localPort = 5220
+var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
+var rsLocal *rtp.Session
+var localZone = ""
+
+// app参数
+var (
+	PACKET_LOSS_RATE    = 0.002
+	CLIENT_ADDRESS_LIST = []string{"127.0.0.1:5222", "239.0.0.0:5222"}
+	QUIC_ADDR           = "localhost:4242"
 )
