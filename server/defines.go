@@ -1,8 +1,11 @@
 package main
 
 import (
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"net"
 	"net/rtp"
+	_ "strconv"
 )
 
 var (
@@ -34,8 +37,21 @@ var rsLocal *rtp.Session
 var localZone = ""
 
 // app参数
-var (
-	PACKET_LOSS_RATE    = 0.002
-	CLIENT_ADDRESS_LIST = []string{"127.0.0.1:5222", "239.0.0.0:5222"}
-	QUIC_ADDR           = "localhost:4242"
-)
+type Config struct {
+	PACKET_LOSS_RATE    float64
+	QUIC_ADDR           string
+	CLIENT_ADDRESS_LIST []string
+}
+
+var conf = &Config{ //default config
+	PACKET_LOSS_RATE:    0.002,
+	QUIC_ADDR:           ":4242",
+	CLIENT_ADDRESS_LIST: []string{"239.0.0.0:5222"},
+}
+
+func (conf *Config) readFromXml(src string) {
+	content, err := ioutil.ReadFile(src)
+	checkError(err)
+	err = yaml.Unmarshal(content, conf)
+	checkError(err)
+}

@@ -92,18 +92,14 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		//创建flv
 		flv_tag = make([]byte, 11+len(tagdata))
 		_, err := CreateTag(flv_tag, tagdata, VIDEO_TAG, message.TimeStamp)
-		if err != nil {
-			panic(err)
-		}
+		checkError(err)
 
 		videoDataSize += int64(len(message.Data))
 	} else if message.IsAudio {
 		//创建flv
 		flv_tag = make([]byte, 11+len(tagdata))
 		_, err := CreateTag(flv_tag, tagdata, AUDIO_TAG, message.TimeStamp)
-		if err != nil {
-			panic(err)
-		}
+		checkError(err)
 		audioDataSize += int64(len(message.Data))
 	} else {
 		return
@@ -169,7 +165,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 func sendPacket(rp *rtp.DataPacket) {
 	for _, udpConn := range UdpConns.Values() {
 		r := rand.Intn(1000)
-		if float64(r)/1000.0 >= PACKET_LOSS_RATE {
+		if float64(r)/1000.0 >= conf.PACKET_LOSS_RATE {
 			_, err := udpConn.(*net.UDPConn).Write(rp.Buffer()[:rp.InUse()])
 			if err != nil {
 				return
@@ -264,7 +260,7 @@ func showRecvDataSize() {
 
 // 启动quic服务
 func startQuic() {
-	fmt.Println("quic server started on ", QUIC_ADDR)
+	fmt.Println("quic server started on ", "localhost"+conf.QUIC_ADDR)
 	conn := initialQUIC()
 
 	//通过channel和seq找到所需的rtp包
@@ -282,9 +278,7 @@ func startQuic() {
 		}
 
 		_, err = conn.ReadSeq(&seq)
-		if err != nil {
-			panic(err)
-		}
+		checkError(err)
 
 		fmt.Println("收到重传请求，seq: ", seq)
 
@@ -298,27 +292,21 @@ func startQuic() {
 		//fmt.Println(pkt)
 		if pkt != nil {
 			_, err = conn.SendRtp(pkt)
-			if err != nil {
-				panic(err)
-			}
+			checkError(err)
 		} else {
 			fmt.Println("quic无法重传，没有该包，seq：", seq)
 			_, err := conn.SendRtp(nil)
-			if err != nil {
-				panic(err)
-			}
+			checkError(err)
 		}
 	}
 }
 
 func initUdpConns() {
 	UdpConns = arraylist.New()
-	for i := 0; i < len(CLIENT_ADDRESS_LIST); i++ {
-		addr := CLIENT_ADDRESS_LIST[i]
+	for i := 0; i < len(conf.CLIENT_ADDRESS_LIST); i++ {
+		addr := conf.CLIENT_ADDRESS_LIST[i]
 		newConn, err := NewUDPConn(addr)
-		if err != nil {
-			panic(err)
-		}
+		checkError(err)
 		UdpConns.Add(newConn)
 	}
 }
@@ -358,6 +346,7 @@ func main() {
 	stream := rtmp.NewRtmpStream(myMessageHandler)
 	ChannelMap = hashmap.New()
 
+	conf.readFromXml("./config.yaml")
 	initUdpConns()
 	go showRecvDataSize()
 	go startQuic()
