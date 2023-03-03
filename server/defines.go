@@ -44,7 +44,7 @@ type Config struct {
 }
 
 var conf = &Config{ //default config
-	PACKET_LOSS_RATE:    0.002,
+	PACKET_LOSS_RATE:    0.000,
 	QUIC_ADDR:           ":4242",
 	CLIENT_ADDRESS_LIST: []string{"239.0.0.0:5222"},
 }

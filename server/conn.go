@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/quic-go/quic-go"
+	"time"
 )
 
 type conn struct {
@@ -98,5 +100,44 @@ func (c *conn) SendRtp(pkt []byte) (int, error) {
 			panic(err)
 		}
 		return c.dataStream.Write(pkt)
+	}
+}
+
+func (c *conn) Serve() {
+	//通过ssrc和seq找到所需的rtp包
+	var seq uint16
+	var ssrc uint32
+
+	for {
+		//fmt.Println("quic线程启动，等待重传序列号")
+
+		err := c.ReadSsrc(&ssrc)
+		if err != nil {
+			//长时间收不到重传请求会触发err
+			time.Sleep(time.Second)
+			continue
+		}
+
+		_, err = c.ReadSeq(&seq)
+		checkError(err)
+
+		fmt.Println("收到重传请求，seq: ", seq)
+
+		//发送rtp数据包给客户
+		val, f := ChannelMap.Get(ssrc)
+		if !f {
+			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
+			continue
+		}
+		pkt := val.(*StreamInfo).RtpQueue.GetPkt(seq)
+		//fmt.Println(pkt)
+		if pkt != nil {
+			_, err = c.SendRtp(pkt)
+			checkError(err)
+		} else {
+			fmt.Println("quic无法重传，没有该包，seq：", seq)
+			_, err := c.SendRtp(nil)
+			checkError(err)
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/gwuhaolin/livego/configure"
 	"github.com/gwuhaolin/livego/protocol/api"
 	"github.com/gwuhaolin/livego/protocol/rtmp"
+	"github.com/quic-go/quic-go"
 	"math"
 	"math/rand"
 	"net"
@@ -260,45 +261,20 @@ func showRecvDataSize() {
 
 // 启动quic服务
 func startQuic() {
-	fmt.Println("quic server started on ", "localhost"+conf.QUIC_ADDR)
-	conn := initialQUIC()
+	tlsConf, err := generateTLSConfig()
+	if err != nil {
+		panic(err)
+	}
 
-	//通过channel和seq找到所需的rtp包
-	var seq uint16
-	var ssrc uint32
+	ln, err := quic.ListenAddr("localhost:4242", tlsConf, nil)
+	checkError(err)
 
 	for {
-		//fmt.Println("quic线程启动，等待重传序列号")
-
-		err := conn.ReadSsrc(&ssrc)
-		if err != nil {
-			//长时间收不到重传请求会触发err
-			time.Sleep(time.Second)
-			continue
-		}
-
-		_, err = conn.ReadSeq(&seq)
-		checkError(err)
-
-		fmt.Println("收到重传请求，seq: ", seq)
-
-		//发送rtp数据包给客户
-		val, f := ChannelMap.Get(ssrc)
-		if !f {
-			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
-			continue
-		}
-		pkt := val.(*StreamInfo).RtpQueue.GetPkt(seq)
-		//fmt.Println(pkt)
-		if pkt != nil {
-			_, err = conn.SendRtp(pkt)
-			checkError(err)
-		} else {
-			fmt.Println("quic无法重传，没有该包，seq：", seq)
-			_, err := conn.SendRtp(nil)
-			checkError(err)
-		}
+		fmt.Println("quic server started on ", "localhost"+conf.QUIC_ADDR)
+		conn := WaitForQuicConn(ln)
+		go conn.Serve()
 	}
+
 }
 
 func initUdpConns() {

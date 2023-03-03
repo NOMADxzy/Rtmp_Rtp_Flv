@@ -14,27 +14,14 @@ import (
 	"time"
 )
 
-func initialQUIC() *conn {
-	tlsConf, err := generateTLSConfig()
-	if err != nil {
-		panic(err)
-	}
+func WaitForQuicConn(ln quic.Listener) *conn {
 
-	ln, err := quic.ListenAddr("localhost:4242", tlsConf, nil)
-
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Waiting for incoming connection")
 	protoconn, err := ln.Accept(context.Background())
 
 	conn, _ := newConn(protoconn, true)
+	checkError(err)
 
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Established connection")
+	fmt.Println("Quic Established connection")
 	return conn
 }
 
