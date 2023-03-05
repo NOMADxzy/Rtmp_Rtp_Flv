@@ -10,7 +10,6 @@ import (
 	"github.com/gwuhaolin/livego/protocol/rtmp"
 	"github.com/quic-go/quic-go"
 	"math"
-	"math/rand"
 	"net"
 	"net/rtp"
 	"path"
@@ -25,8 +24,7 @@ var videoDataSize int64
 var audioDataSize int64
 var VERSION = "master"
 var SSRC = uint32(1020303)
-var ChannelMap *hashmap.Map
-var Channels *arraylist.List
+var ChannelMap *hashmap.Map //key:SSRC，val:streamInfo
 var UdpConns *arraylist.List
 
 type StreamInfo struct {
@@ -60,8 +58,6 @@ func addChannel(channel string) *StreamInfo {
 	}
 
 	ChannelMap.Put(SSRC, streamInfo)
-	Channels.Add(channel)
-
 	return streamInfo
 }
 
@@ -73,6 +69,12 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	stream.SetSsrc(SSRC)
 	fmt.Println("NewStreamCreated SSRC = ", SSRC)
 
+}
+
+// 自定义流停止方法
+func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
+	ChannelMap.Remove(stream.Ssrc())
+	fmt.Println("StreamClosed SSRC = ", stream.Ssrc())
 }
 
 // 自定义消息处理方法
@@ -165,12 +167,9 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 //	}
 func sendPacket(rp *rtp.DataPacket) {
 	for _, udpConn := range UdpConns.Values() {
-		r := rand.Intn(1000)
-		if float64(r)/1000.0 >= conf.PACKET_LOSS_RATE {
-			_, err := udpConn.(*net.UDPConn).Write(rp.Buffer()[:rp.InUse()])
-			if err != nil {
-				return
-			}
+		_, err := udpConn.(*net.UDPConn).Write(rp.Buffer()[:rp.InUse()])
+		if err != nil {
+			return
 		}
 	}
 }
@@ -317,7 +316,6 @@ func main() {
 		}
 	}()
 
-	Channels = arraylist.New()
 	myMessageHandler := &MyMessageHandler{}
 	stream := rtmp.NewRtmpStream(myMessageHandler)
 	ChannelMap = hashmap.New()

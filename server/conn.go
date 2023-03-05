@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/quic-go/quic-go"
-	"time"
 )
 
 type conn struct {
@@ -103,6 +102,15 @@ func (c *conn) SendRtp(pkt []byte) (int, error) {
 	}
 }
 
+func (c *conn) Close() {
+	err := c.infoStream.Close()
+	checkError(err)
+	err = c.dataStream.Close()
+	checkError(err)
+	c = nil
+	fmt.Println("timeout conn closed")
+}
+
 func (c *conn) Serve() {
 	//通过ssrc和seq找到所需的rtp包
 	var seq uint16
@@ -114,8 +122,8 @@ func (c *conn) Serve() {
 		err := c.ReadSsrc(&ssrc)
 		if err != nil {
 			//长时间收不到重传请求会触发err
-			time.Sleep(time.Second)
-			continue
+			c.Close()
+			return
 		}
 
 		_, err = c.ReadSeq(&seq)
