@@ -3,11 +3,11 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/NOMADxzy/livego/av"
+	"github.com/NOMADxzy/livego/configure"
+	"github.com/NOMADxzy/livego/protocol/api"
+	"github.com/NOMADxzy/livego/protocol/rtmp"
 	"github.com/emirpasic/gods/lists/arraylist"
-	"github.com/gwuhaolin/livego/av"
-	"github.com/gwuhaolin/livego/configure"
-	"github.com/gwuhaolin/livego/protocol/api"
-	"github.com/gwuhaolin/livego/protocol/rtmp"
 	"github.com/quic-go/quic-go"
 	"math"
 	"net"
@@ -33,7 +33,7 @@ type StreamInfo struct {
 	channel     string
 	flvFile     *File
 	timestamp   uint32
-	RtpQueue    *queue
+	RtpQueue    *mapQueue
 }
 
 // 创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
@@ -47,7 +47,7 @@ func addChannel(channel string) *StreamInfo {
 	flvFile := createFlvFile(channel)
 
 	//创建rtp缓存队列
-	var rtpQueue = newQueue(5000)
+	var rtpQueue = newMapQueue(5000)
 
 	streamInfo := &StreamInfo{
 		strLocalIdx: strLocalIdx,

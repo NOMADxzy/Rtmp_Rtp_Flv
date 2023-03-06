@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/emirpasic/gods v1.18.1
-	github.com/gwuhaolin/livego v0.0.0-20220914133149-42d7596e8048 // indirect
+	github.com/NOMADxzy/livego v1.0.7
 	github.com/quic-go/quic-go v0.32.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/zhangpeihao/goamf v0.0.0-20140409082417-3ff2c19514a8 // indirect

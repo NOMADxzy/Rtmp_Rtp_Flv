@@ -11,7 +11,7 @@ import (
 //	seq    uint16
 //}
 
-type queue struct {
+type mapQueue struct {
 	m            sync.RWMutex
 	maxSize      int
 	bytesInQueue int
@@ -19,11 +19,11 @@ type queue struct {
 	RtpMap       *hashmap.Map
 }
 
-func newQueue(size int) *queue {
-	return &queue{queue: list.New(), maxSize: size, RtpMap: hashmap.New()}
+func newMapQueue(size int) *mapQueue {
+	return &mapQueue{queue: list.New(), maxSize: size, RtpMap: hashmap.New()}
 }
 
-func (q *queue) SizeOfNextRTP() int {
+func (q *mapQueue) SizeOfNextRTP() int {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
@@ -37,7 +37,7 @@ func (q *queue) SizeOfNextRTP() int {
 	return len(val.([]byte))
 }
 
-func (q *queue) SeqNrOfNextRTP() uint16 {
+func (q *mapQueue) SeqNrOfNextRTP() uint16 {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
@@ -48,7 +48,7 @@ func (q *queue) SeqNrOfNextRTP() uint16 {
 	return q.queue.Front().Value.(uint16)
 }
 
-func (q *queue) SeqNrOfLastRTP() uint16 {
+func (q *mapQueue) SeqNrOfLastRTP() uint16 {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
@@ -66,14 +66,14 @@ func (q *queue) SeqNrOfLastRTP() uint16 {
 //	return q.bytesInQueue
 //}
 
-func (q *queue) SizeOfQueue() int {
+func (q *mapQueue) SizeOfQueue() int {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
 	return q.queue.Len()
 }
 
-func (q *queue) Clear() int {
+func (q *mapQueue) Clear() int {
 	q.m.Lock()
 	defer q.m.Unlock()
 
@@ -88,7 +88,7 @@ func (q *queue) Clear() int {
 	return size
 }
 
-func (q *queue) Enqueue(pkt []byte, seq uint16) {
+func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
 	q.m.Lock()
 	defer q.m.Unlock()
 
@@ -105,7 +105,7 @@ func (q *queue) Enqueue(pkt []byte, seq uint16) {
 	}
 }
 
-func (q *queue) Dequeue() interface{} {
+func (q *mapQueue) Dequeue() interface{} {
 	q.m.Lock()
 	defer q.m.Unlock()
 
@@ -121,7 +121,7 @@ func (q *queue) Dequeue() interface{} {
 	return packet
 }
 
-func (q *queue) GetPkt(targetSeq uint16) []byte {
+func (q *mapQueue) GetPkt(targetSeq uint16) []byte {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
