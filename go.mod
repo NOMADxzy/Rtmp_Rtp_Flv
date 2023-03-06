@@ -3,7 +3,6 @@ module rtmp_rtp_flv
 go 1.13
 
 require (
-	github.com/NOMADxzy/livego v1.0.0
 	github.com/emirpasic/gods v1.18.1
 	github.com/gwuhaolin/livego v0.0.0-20220914133149-42d7596e8048 // indirect
 	github.com/quic-go/quic-go v0.32.0

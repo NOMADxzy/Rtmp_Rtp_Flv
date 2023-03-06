@@ -51,7 +51,16 @@ var conf = &Config{ //default config
 
 func (conf *Config) readFromXml(src string) {
 	content, err := ioutil.ReadFile(src)
-	checkError(err)
+	if err != nil {
+		conf.writeToXml(src)
+		return
+	}
 	err = yaml.Unmarshal(content, conf)
+	checkError(err)
+}
+func (conf *Config) writeToXml(src string) {
+	data, err := yaml.Marshal(conf)
+	checkError(err)
+	err = ioutil.WriteFile(src, data, 0777)
 	checkError(err)
 }
