@@ -46,7 +46,7 @@ type Config struct {
 var conf = &Config{ //default config
 	PACKET_LOSS_RATE:    0.000,
 	QUIC_ADDR:           ":4242",
-	CLIENT_ADDRESS_LIST: []string{"239.0.0.0:5222"},
+	CLIENT_ADDRESS_LIST: []string{"127.0.0.1:5222"},
 }
 
 func (conf *Config) readFromXml(src string) {

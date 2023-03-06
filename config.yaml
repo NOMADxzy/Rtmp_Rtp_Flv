@@ -1,5 +1,0 @@
-packet_loss_rate: 0.000
-quic_addr: :4242
-client_address_list:
-- 127.0.0.1:5222
-- 127.0.0.1:5224
