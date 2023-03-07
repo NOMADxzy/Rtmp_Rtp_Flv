@@ -33,7 +33,7 @@ type StreamInfo struct {
 	channel     string
 	flvFile     *File
 	timestamp   uint32
-	RtpQueue    *mapQueue
+	RtpQueue    *listQueue
 }
 
 // 创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
@@ -47,7 +47,8 @@ func addChannel(channel string) *StreamInfo {
 	flvFile := createFlvFile(channel)
 
 	//创建rtp缓存队列
-	var rtpQueue = newMapQueue(5000)
+	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE)
+	go rtpQueue.printInfo()
 
 	streamInfo := &StreamInfo{
 		strLocalIdx: strLocalIdx,
@@ -278,8 +279,8 @@ func startQuic() {
 
 func initUdpConns() {
 	UdpConns = arraylist.New()
-	for i := 0; i < len(conf.CLIENT_ADDRESS_LIST); i++ {
-		addr := conf.CLIENT_ADDRESS_LIST[i]
+	for i := 0; i < len(conf.CLIENT_ADDR_LIST); i++ {
+		addr := conf.CLIENT_ADDR_LIST[i]
 		newConn, err := NewUDPConn(addr)
 		checkError(err)
 		UdpConns.Add(newConn)
@@ -322,7 +323,7 @@ func main() {
 
 	conf.readFromXml("./config.yaml")
 	initUdpConns()
-	go showRecvDataSize()
+	//go showRecvDataSize()
 	go startQuic()
 
 	startAPI(stream)

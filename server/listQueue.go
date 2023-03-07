@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/emirpasic/gods/lists/arraylist"
 	"sync"
+	"time"
 )
 
+//通过arraylist实现的rtp缓存
 type listQueue struct {
 	m            sync.RWMutex
 	maxSize      int
@@ -66,6 +69,7 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 	q.m.Lock()
 	defer q.m.Unlock()
 
+	q.totalSend += 1
 	q.bytesInQueue += len(pkt)
 	q.queue.Add(pkt)
 	q.LastSeq = seq
@@ -106,6 +110,7 @@ func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
+	q.totalLost += 1
 	front := q.FirstSeq
 	back := q.LastSeq
 
@@ -132,4 +137,25 @@ func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 		}
 	}
 	return nil
+}
+
+func (q *listQueue) Check() bool {
+	if q.FirstSeq < q.LastSeq {
+		return int(q.LastSeq-q.FirstSeq+1) == q.queue.Size()
+	} else if q.FirstSeq == q.LastSeq {
+		return q.queue.Size() == 0 || q.queue.Size() == 1
+	} else {
+		return 65536-int(q.FirstSeq)+int(q.LastSeq)+1 == q.queue.Size()
+	}
+}
+
+func (q *listQueue) printInfo() {
+	for {
+		_ = <-time.After(5 * time.Second)
+		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
+			q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
+		if !q.Check() {
+			panic("rtp queue params err")
+		}
+	}
 }

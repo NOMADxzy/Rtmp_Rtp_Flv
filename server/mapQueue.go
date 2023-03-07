@@ -1,9 +1,10 @@
 package main
 
 import (
-	"container/list"
+	"fmt"
 	"github.com/emirpasic/gods/maps/hashmap"
 	"sync"
+	"time"
 )
 
 //type rtpQueueItem struct {
@@ -11,137 +12,108 @@ import (
 //	seq    uint16
 //}
 
+//通过map实现的rtp缓存
 type mapQueue struct {
 	m            sync.RWMutex
 	maxSize      int
 	bytesInQueue int
-	queue        *list.List
+	FirstSeq     uint16
+	LastSeq      uint16
 	RtpMap       *hashmap.Map
+	totalSend    int
+	totalLost    int
+	Size         int
 }
 
 func newMapQueue(size int) *mapQueue {
-	return &mapQueue{queue: list.New(), maxSize: size, RtpMap: hashmap.New()}
+	return &mapQueue{maxSize: size, RtpMap: hashmap.New()}
 }
 
 func (q *mapQueue) SizeOfNextRTP() int {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
-	if q.queue.Len() <= 0 {
+	if q.totalSend == 0 {
 		return 0
 	}
-	val, found := q.RtpMap.Get(q.queue.Front().Value.(uint16))
+	val, found := q.RtpMap.Get(q.FirstSeq)
 	if !found {
 		return 0
 	}
 	return len(val.([]byte))
 }
 
-func (q *mapQueue) SeqNrOfNextRTP() uint16 {
-	q.m.RLock()
-	defer q.m.RUnlock()
-
-	if q.queue.Len() <= 0 {
-		return 0
-	}
-
-	return q.queue.Front().Value.(uint16)
-}
-
-func (q *mapQueue) SeqNrOfLastRTP() uint16 {
-	q.m.RLock()
-	defer q.m.RUnlock()
-
-	if q.queue.Len() <= 0 {
-		return 0
-	}
-
-	return q.queue.Back().Value.(uint16)
-}
-
-//func (q *queue) BytesInQueue() int {
-//	q.m.Lock()
-//	defer q.m.Unlock()
-//
-//	return q.bytesInQueue
-//}
-
-func (q *mapQueue) SizeOfQueue() int {
-	q.m.RLock()
-	defer q.m.RUnlock()
-
-	return q.queue.Len()
-}
-
-func (q *mapQueue) Clear() int {
+func (q *mapQueue) Clear() {
 	q.m.Lock()
 	defer q.m.Unlock()
 
-	size := q.queue.Len()
-	front := q.queue.Front()
-	for front != nil {
-		q.RtpMap.Remove(front.Value)
-		front = front.Next()
-	}
+	q.RtpMap.Clear()
+	q.FirstSeq = 0
+	q.LastSeq = 0
+	q.totalSend = 0
+	q.totalLost = 0
 	q.bytesInQueue = 0
-	q.queue.Init()
-	return size
+	q.Size = 0
 }
 
 func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
 	q.m.Lock()
 	defer q.m.Unlock()
 
+	q.totalSend += 1
+	q.Size += 1
 	q.bytesInQueue += len(pkt)
-	q.queue.PushBack(seq)
 	q.RtpMap.Put(seq, pkt)
-	if q.queue.Len() > q.maxSize { //超出最大长度
-		front := q.queue.Front()
-		q.queue.Remove(front)
-		val, _ := q.RtpMap.Get(front.Value)
+	q.LastSeq = seq
+
+	if q.Size > q.maxSize { //超出最大长度
+		q.Size -= 1
+		val, _ := q.RtpMap.Get(q.FirstSeq)
+		q.RtpMap.Remove(q.FirstSeq)
+		if q.FirstSeq == uint16(65535) {
+			q.FirstSeq = uint16(0)
+		} else {
+			q.FirstSeq += uint16(1)
+		}
+
 		freed_size := len(val.([]byte))
-		q.RtpMap.Remove(front.Value)
 		q.bytesInQueue -= freed_size
+	} else if q.Size == 1 {
+		q.FirstSeq = seq
 	}
-}
-
-func (q *mapQueue) Dequeue() interface{} {
-	q.m.Lock()
-	defer q.m.Unlock()
-
-	if q.queue.Len() <= 0 {
-		return nil
-	}
-
-	front := q.queue.Front()
-	q.queue.Remove(front)
-	packet, _ := q.RtpMap.Get(front.Value)
-	q.RtpMap.Remove(front.Value)
-	q.bytesInQueue -= len(packet.([]byte))
-	return packet
 }
 
 func (q *mapQueue) GetPkt(targetSeq uint16) []byte {
 	q.m.RLock()
 	defer q.m.RUnlock()
 
-	front := q.queue.Front().Value.(uint16)
-	back := q.queue.Back().Value.(uint16)
-	if targetSeq < front || targetSeq > back { //不在队列中,或者rtp序号发生了循环
-		if front < back {
-			return nil
-		} else {
-			val, f := q.RtpMap.Get(targetSeq)
-			if f {
-				return val.([]byte)
-			}
-			return nil
-		}
+	q.totalLost += 1
+
+	if val, f := q.RtpMap.Get(targetSeq); f {
+		return val.([]byte)
 	} else {
-		val, f := q.RtpMap.Get(targetSeq)
-		if f {
-			return val.([]byte)
-		}
 		return nil
+	}
+
+}
+
+func (q *mapQueue) Check() bool {
+	if q.FirstSeq < q.LastSeq {
+		return int(q.LastSeq-q.FirstSeq+1) == q.Size
+	} else if q.FirstSeq == q.LastSeq {
+		return q.Size == 0 || q.Size == 1
+	} else {
+		return 65536-int(q.FirstSeq)+int(q.LastSeq)+1 == q.Size
+	}
+}
+
+func (q *mapQueue) printInfo() {
+	for {
+		_ = <-time.After(5 * time.Second)
+		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
+			q.Size, q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
+		if !q.Check() {
+			panic("rtp queue params err")
+		}
 	}
 }
