@@ -38,15 +38,15 @@ var localZone = ""
 
 // app参数
 type Config struct {
-	PACKET_LOSS_RATE    float64
-	QUIC_ADDR           string
-	CLIENT_ADDRESS_LIST []string
+	RTP_CACHE_SIZE   int      `yaml:"rtp_cache_size"`
+	QUIC_ADDR        string   `yaml:"quic_addr"`
+	CLIENT_ADDR_LIST []string `yaml:"client_addr_list"`
 }
 
 var conf = &Config{ //default config
-	PACKET_LOSS_RATE:    0.000,
-	QUIC_ADDR:           ":4242",
-	CLIENT_ADDRESS_LIST: []string{"127.0.0.1:5222"},
+	RTP_CACHE_SIZE:   5000,
+	QUIC_ADDR:        ":4242",
+	CLIENT_ADDR_LIST: []string{"127.0.0.1:5222"},
 }
 
 func (conf *Config) readFromXml(src string) {
