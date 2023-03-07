@@ -37,24 +37,6 @@ func (q *listQueue) SizeOfNextRTP() int {
 	return len(val.([]byte))
 }
 
-func (q *listQueue) SeqNrOfLastRTP() uint16 {
-	q.m.RLock()
-	defer q.m.RUnlock()
-
-	if q.queue.Size() <= 0 {
-		return 0
-	}
-
-	return q.FirstSeq + uint16(q.queue.Size()-1)
-}
-
-//func (q *listQueue) BytesInQueue() int {
-//	q.m.Lock()
-//	defer q.m.Unlock()
-//
-//	return q.bytesInQueue
-//}
-
 func (q *listQueue) Clear() {
 	q.m.Lock()
 	defer q.m.Unlock()
@@ -63,6 +45,8 @@ func (q *listQueue) Clear() {
 	q.bytesInQueue = 0
 	q.FirstSeq = uint16(0)
 	q.LastSeq = uint16(0)
+	q.totalSend = 0
+	q.totalLost = 0
 }
 
 func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
@@ -89,22 +73,6 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 		q.FirstSeq = seq
 	}
 }
-
-//func (q *queue) Dequeue() interface{} {
-//	q.m.Lock()
-//	defer q.m.Unlock()
-//
-//	if q.queue.Len() <= 0 {
-//		return nil
-//	}
-//
-//	front := q.queue.Front()
-//	q.queue.Remove(front)
-//	packet, _ := q.RtpMap.Get(front.Value)
-//	q.RtpMap.Remove(front.Value)
-//	q.bytesInQueue -= len(packet.([]byte))
-//	return packet
-//}
 
 func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 	q.m.RLock()
