@@ -17,6 +17,7 @@ type listQueue struct {
 	queue        *arraylist.List
 	totalSend    int
 	totalLost    int
+	Closed       bool
 }
 
 func newlistQueue(size int) *listQueue {
@@ -120,6 +121,9 @@ func (q *listQueue) Check() bool {
 func (q *listQueue) printInfo() {
 	for {
 		_ = <-time.After(5 * time.Second)
+		if q.Closed {
+			return
+		}
 		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
 			q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
 		if !q.Check() {

@@ -74,6 +74,11 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 
 // 自定义流停止方法
 func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
+	if val, ok := ChannelMap.Get(stream.Ssrc()); ok {
+		streamInfo := val.(*StreamInfo)
+		streamInfo.flvFile.Close()
+		streamInfo.RtpQueue.Closed = true
+	}
 	ChannelMap.Remove(stream.Ssrc())
 	fmt.Println("StreamClosed SSRC = ", stream.Ssrc())
 }

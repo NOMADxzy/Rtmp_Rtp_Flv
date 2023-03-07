@@ -23,6 +23,7 @@ type mapQueue struct {
 	totalSend    int
 	totalLost    int
 	Size         int
+	Closed       bool
 }
 
 func newMapQueue(size int) *mapQueue {
@@ -54,6 +55,7 @@ func (q *mapQueue) Clear() {
 	q.totalLost = 0
 	q.bytesInQueue = 0
 	q.Size = 0
+	q = nil
 }
 
 func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
@@ -110,6 +112,9 @@ func (q *mapQueue) Check() bool {
 func (q *mapQueue) printInfo() {
 	for {
 		_ = <-time.After(5 * time.Second)
+		if q.Closed {
+			return
+		}
 		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
 			q.Size, q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
 		if !q.Check() {
