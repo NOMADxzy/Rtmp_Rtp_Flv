@@ -18,10 +18,11 @@ type listQueue struct {
 	totalSend    int
 	totalLost    int
 	Closed       bool
+	ssrc         uint32
 }
 
-func newlistQueue(size int) *listQueue {
-	return &listQueue{queue: arraylist.New(), maxSize: size}
+func newlistQueue(size int, ssrc uint32) *listQueue {
+	return &listQueue{queue: arraylist.New(), maxSize: size, ssrc: ssrc}
 }
 
 func (q *listQueue) SizeOfNextRTP() int {
@@ -62,6 +63,7 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 	if q.queue.Size() > q.maxSize { // 超出最大长度
 		val, _ := q.queue.Get(0)
 		q.queue.Remove(0)
+		// q.FirstSeq = (q.FirstSeq + 1) % uint16(65536)
 		if q.FirstSeq == uint16(65535) {
 			q.FirstSeq = 0
 		} else {
@@ -124,8 +126,8 @@ func (q *listQueue) printInfo() {
 		if q.Closed {
 			return
 		}
-		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
-			q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
+		fmt.Printf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
+			q.ssrc, q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
 		if !q.Check() {
 			panic("rtp queue params err")
 		}

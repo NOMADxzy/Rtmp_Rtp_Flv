@@ -48,7 +48,7 @@ func addChannel(channel string) *StreamInfo {
 	flvFile := createFlvFile(channel)
 
 	//创建rtp缓存队列
-	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE)
+	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE, SSRC)
 	go rtpQueue.printInfo()
 
 	streamInfo := &StreamInfo{

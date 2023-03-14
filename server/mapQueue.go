@@ -24,10 +24,11 @@ type mapQueue struct {
 	totalLost    int
 	Size         int
 	Closed       bool
+	ssrc         uint32
 }
 
-func newMapQueue(size int) *mapQueue {
-	return &mapQueue{maxSize: size, RtpMap: hashmap.New()}
+func newMapQueue(size int, ssrc uint32) *mapQueue {
+	return &mapQueue{maxSize: size, RtpMap: hashmap.New(), ssrc: ssrc}
 }
 
 func (q *mapQueue) SizeOfNextRTP() int {
@@ -115,8 +116,8 @@ func (q *mapQueue) printInfo() {
 		if q.Closed {
 			return
 		}
-		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
-			q.Size, q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
+		fmt.Printf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
+			q.ssrc, q.Size, q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
 		if !q.Check() {
 			panic("rtp queue params err")
 		}
