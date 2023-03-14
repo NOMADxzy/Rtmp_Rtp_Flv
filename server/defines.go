@@ -36,7 +36,7 @@ var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
 var rsLocal *rtp.Session
 var localZone = ""
 
-// app参数
+// Config app参数
 type Config struct {
 	RTP_CACHE_SIZE   int      `yaml:"rtp_cache_size"`
 	QUIC_ADDR        string   `yaml:"quic_addr"`

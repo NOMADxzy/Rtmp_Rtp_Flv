@@ -12,7 +12,7 @@ import (
 //	seq    uint16
 //}
 
-//通过map实现的rtp缓存
+// 通过map实现的rtp缓存
 type mapQueue struct {
 	m            sync.RWMutex
 	maxSize      int
@@ -24,10 +24,11 @@ type mapQueue struct {
 	totalLost    int
 	Size         int
 	Closed       bool
+	ssrc         uint32
 }
 
-func newMapQueue(size int) *mapQueue {
-	return &mapQueue{maxSize: size, RtpMap: hashmap.New()}
+func newMapQueue(size int, ssrc uint32) *mapQueue {
+	return &mapQueue{maxSize: size, RtpMap: hashmap.New(), ssrc: ssrc}
 }
 
 func (q *mapQueue) SizeOfNextRTP() int {
@@ -55,7 +56,7 @@ func (q *mapQueue) Clear() {
 	q.totalLost = 0
 	q.bytesInQueue = 0
 	q.Size = 0
-	q = nil
+	//q = nil
 }
 
 func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
@@ -68,7 +69,7 @@ func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
 	q.RtpMap.Put(seq, pkt)
 	q.LastSeq = seq
 
-	if q.Size > q.maxSize { //超出最大长度
+	if q.Size > q.maxSize { // 超出最大长度
 		q.Size -= 1
 		val, _ := q.RtpMap.Get(q.FirstSeq)
 		q.RtpMap.Remove(q.FirstSeq)
@@ -115,8 +116,8 @@ func (q *mapQueue) printInfo() {
 		if q.Closed {
 			return
 		}
-		fmt.Printf("current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
-			q.Size, q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
+		fmt.Printf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
+			q.ssrc, q.Size, q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
 		if !q.Check() {
 			panic("rtp queue params err")
 		}

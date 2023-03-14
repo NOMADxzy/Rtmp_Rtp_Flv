@@ -8,39 +8,32 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-type conn struct {
+type Conn struct {
 	Connection quic.Connection
 	infoStream quic.Stream
 	dataStream quic.Stream
 }
 
 // 自定义的Conn，方便操作
-func newConn(sess quic.Connection, is_server bool) (*conn, error) {
+func newConn(sess quic.Connection, is_server bool) (*Conn, error) {
+	quicStream, err := sess.OpenStream()
 	if is_server {
-		dstream, err := sess.OpenStream()
-		if err != nil {
-			return nil, err
-		}
-		return &conn{
-			Connection: sess,
-			dataStream: dstream,
-		}, nil
-	} else {
-		istream, err := sess.OpenStream()
-		if err != nil {
-			return nil, err
-		}
-		return &conn{
-			Connection: sess,
-			infoStream: istream,
-		}, nil
+		fmt.Print("This is quic server launched by cloudServer.\n")
 	}
+	if err != nil {
+		return nil, err
+	}
+	return &Conn{
+		Connection: sess,
+		dataStream: quicStream,
+	}, nil
 }
 
 //	func (c *conn) DataStream() quic.Stream {
 //		return c.dataStream
 //	}
-func (c *conn) ReadSeq(seq *uint16) (int, error) {
+
+func (c *Conn) ReadSeq(seq *uint16) (int, error) {
 	if c.infoStream == nil {
 		var err error
 		c.infoStream, err = c.Connection.AcceptStream(context.Background())
@@ -56,11 +49,9 @@ func (c *conn) ReadSeq(seq *uint16) (int, error) {
 	}
 	*seq = binary.BigEndian.Uint16(seq_b)
 	return 0, err
-
-	//return io.ReadFull(c.dataStream,b)
 }
 
-func (c *conn) ReadSsrc(ssrc *uint32) error {
+func (c *Conn) ReadSsrc(ssrc *uint32) error {
 	if c.infoStream == nil {
 		var err error
 		c.infoStream, err = c.Connection.AcceptStream(context.Background())
@@ -76,18 +67,16 @@ func (c *conn) ReadSsrc(ssrc *uint32) error {
 	}
 	*ssrc = binary.BigEndian.Uint32(ssrc_b)
 	return err
-
-	//return io.ReadFull(c.dataStream,b)
 }
 
-func (c *conn) SendLen(len uint16) (int, error) {
+func (c *Conn) SendLen(len uint16) (int, error) {
 	len_b := make([]byte, 2)
 	binary.BigEndian.PutUint16(len_b, len)
 	return c.infoStream.Write(len_b)
 }
 
-func (c *conn) SendRtp(pkt []byte) (int, error) {
-	if pkt == nil { //缓存中没找到该包
+func (c *Conn) SendRtp(pkt []byte) (int, error) {
+	if pkt == nil { // 缓存中没找到该包
 		_, err := c.SendLen(uint16(0))
 		if err != nil {
 			panic(err)
@@ -102,7 +91,7 @@ func (c *conn) SendRtp(pkt []byte) (int, error) {
 	}
 }
 
-func (c *conn) Close() {
+func (c *Conn) Close() {
 	err := c.infoStream.Close()
 	checkError(err)
 	err = c.dataStream.Close()
@@ -111,24 +100,22 @@ func (c *conn) Close() {
 	fmt.Println("timeout conn closed")
 }
 
-func (c *conn) Serve() {
-	//通过ssrc和seq找到所需的rtp包
+func (c *Conn) Serve() {
+	// 通过ssrc和seq找到所需的rtp包
 	var seq uint16
 	var ssrc uint32
 
+	// quic线程启动，等待重传序列号
 	for {
-		//fmt.Println("quic线程启动，等待重传序列号")
-
 		err := c.ReadSsrc(&ssrc)
 		if err != nil {
-			//长时间收不到重传请求会触发err
+			// 长时间收不到重传请求会触发err
 			c.Close()
 			return
 		}
 
 		_, err = c.ReadSeq(&seq)
 		checkError(err)
-
 		fmt.Println("收到重传请求，seq: ", seq)
 
 		//发送rtp数据包给客户
