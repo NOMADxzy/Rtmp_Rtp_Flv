@@ -122,8 +122,10 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		rp.SetPayload(flv_tag)
 		sendPacket(rp)
 
-		streamInfo.RtpQueue.Enqueue(rp.Buffer()[:rp.InUse()], rp.Sequence()) // 加入 RtpQueue
-		rp.FreePacket()                                                      // 释放内存
+		rtp_buf := make([]byte, rp.InUse()) // 深拷贝：需要提前复制
+		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
+		streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence()) // 加入 RtpQueue
+		rp.FreePacket()                                     // 释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
@@ -137,7 +139,9 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 			}
 			sendPacket(rp)
 
-			streamInfo.RtpQueue.Enqueue(rp.Buffer()[:rp.InUse()], rp.Sequence())
+			rtp_buf := make([]byte, rp.InUse())
+			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
+			streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
 			rp.FreePacket()
 		}
 	}

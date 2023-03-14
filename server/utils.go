@@ -42,9 +42,7 @@ func NewUDPConn(address string) (*net.UDPConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return conn, nil
-
 }
 
 func checkError(err error) {

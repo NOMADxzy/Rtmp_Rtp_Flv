@@ -16,25 +16,17 @@ type Conn struct {
 
 // 自定义的Conn，方便操作
 func newConn(sess quic.Connection, is_server bool) (*Conn, error) {
+	quicStream, err := sess.OpenStream()
 	if is_server {
-		dstream, err := sess.OpenStream()
-		if err != nil {
-			return nil, err
-		}
-		return &Conn{
-			Connection: sess,
-			dataStream: dstream,
-		}, nil
-	} else {
-		istream, err := sess.OpenStream()
-		if err != nil {
-			return nil, err
-		}
-		return &Conn{
-			Connection: sess,
-			infoStream: istream,
-		}, nil
+		fmt.Print("This is quic server launched by cloudServer.\n")
 	}
+	if err != nil {
+		return nil, err
+	}
+	return &Conn{
+		Connection: sess,
+		dataStream: quicStream,
+	}, nil
 }
 
 //	func (c *conn) DataStream() quic.Stream {
