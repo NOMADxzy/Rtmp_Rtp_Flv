@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-//通过arraylist实现的rtp缓存
+// 通过arraylist实现的rtp缓存
 type listQueue struct {
 	m            sync.RWMutex
 	maxSize      int
@@ -59,7 +59,7 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 	q.queue.Add(pkt)
 	q.LastSeq = seq
 
-	if q.queue.Size() > q.maxSize { //超出最大长度
+	if q.queue.Size() > q.maxSize { // 超出最大长度
 		val, _ := q.queue.Get(0)
 		q.queue.Remove(0)
 		if q.FirstSeq == uint16(65535) {
@@ -83,7 +83,7 @@ func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 	front := q.FirstSeq
 	back := q.LastSeq
 
-	if front < back { //队列未循环
+	if front < back { // 队列未循环
 		if targetSeq < front || targetSeq > back {
 			return nil
 		} else {
@@ -92,7 +92,7 @@ func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 				return pkt.([]byte)
 			}
 		}
-	} else { //队列发生了循环
+	} else { // 队列发生了循环
 		if targetSeq >= front && targetSeq <= uint16(65535) {
 			pkt, f := q.queue.Get(int(targetSeq - front))
 			if f {

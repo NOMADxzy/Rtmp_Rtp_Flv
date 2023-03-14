@@ -12,7 +12,7 @@ import (
 //	seq    uint16
 //}
 
-//通过map实现的rtp缓存
+// 通过map实现的rtp缓存
 type mapQueue struct {
 	m            sync.RWMutex
 	maxSize      int
@@ -55,7 +55,7 @@ func (q *mapQueue) Clear() {
 	q.totalLost = 0
 	q.bytesInQueue = 0
 	q.Size = 0
-	q = nil
+	//q = nil
 }
 
 func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
@@ -68,7 +68,7 @@ func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {
 	q.RtpMap.Put(seq, pkt)
 	q.LastSeq = seq
 
-	if q.Size > q.maxSize { //超出最大长度
+	if q.Size > q.maxSize { // 超出最大长度
 		q.Size -= 1
 		val, _ := q.RtpMap.Get(q.FirstSeq)
 		q.RtpMap.Remove(q.FirstSeq)

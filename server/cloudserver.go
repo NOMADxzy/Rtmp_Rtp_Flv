@@ -24,7 +24,7 @@ var videoDataSize int64
 var audioDataSize int64
 var VERSION = "master"
 var SSRC = uint32(1020303)
-var ChannelMap *hashmap.Map //key:SSRC，val:streamInfo
+var ChannelMap *hashmap.Map // key:SSRC，val:streamInfo
 var UdpConns *arraylist.List
 
 type StreamInfo struct {
@@ -40,7 +40,8 @@ type StreamInfo struct {
 func addChannel(channel string) *StreamInfo {
 	SSRC += uint32(1)
 	//创建SSRC流
-	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{local.IP, localPort, localPort + 1, localZone}, SSRC, RTP_INITIAL_SEQ)
+	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{
+		IPAddr: local.IP, DataPort: localPort, CtrlPort: localPort + 1, Zone: localZone}, SSRC, RTP_INITIAL_SEQ)
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
 	ssrcStream.SetPayloadType(77)
 	//创建录制文件
@@ -64,15 +65,14 @@ func addChannel(channel string) *StreamInfo {
 
 type MyMessageHandler struct{}
 
-// 自定义流创建方法
+// OnStreamCreated 自定义流创建方法
 func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	SSRC := addChannel(stream.Channel()).SSRC
 	stream.SetSsrc(SSRC)
 	fmt.Println("NewStreamCreated SSRC = ", SSRC)
-
 }
 
-// 自定义流停止方法
+// OnStreamClosed 自定义流停止方法
 func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	if val, ok := ChannelMap.Get(stream.Ssrc()); ok {
 		streamInfo := val.(*StreamInfo)
@@ -83,7 +83,7 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	fmt.Println("StreamClosed SSRC = ", stream.Ssrc())
 }
 
-// 自定义消息处理方法
+// OnReceived 自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	var streamInfo *StreamInfo
 	val, f := ChannelMap.Get(s.Ssrc())
@@ -93,28 +93,27 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		streamInfo = val.(*StreamInfo)
 	}
 
-	tagdata := message.Data
+	// metaData 相当于 flvTagBody
+	metadata := message.Data
 	var flv_tag []byte
 	streamInfo.timestamp += uint32(1)
 
+	// 创建音频或视频 flvTag = flvTagHeader (11 bytes) + flvTagBody
 	if message.IsVideo {
-		//创建flv
-		flv_tag = make([]byte, 11+len(tagdata))
-		_, err := CreateTag(flv_tag, tagdata, VIDEO_TAG, message.TimeStamp)
+		flv_tag = make([]byte, 11+len(metadata))
+		_, err := CreateTag(flv_tag, metadata, VIDEO_TAG, message.TimeStamp)
 		checkError(err)
-
 		videoDataSize += int64(len(message.Data))
 	} else if message.IsAudio {
-		//创建flv
-		flv_tag = make([]byte, 11+len(tagdata))
-		_, err := CreateTag(flv_tag, tagdata, AUDIO_TAG, message.TimeStamp)
+		flv_tag = make([]byte, 11+len(metadata))
+		_, err := CreateTag(flv_tag, metadata, AUDIO_TAG, message.TimeStamp)
 		checkError(err)
 		audioDataSize += int64(len(message.Data))
 	} else {
 		return
 	}
 
-	//发送flv_tag，超长则分片发送
+	// 发送flv_tag，超长则分片发送
 	flv_tag_len := len(flv_tag)
 	var rp *rtp.DataPacket
 	if flv_tag_len <= MAX_RTP_PAYLOAD_LEN {
@@ -123,12 +122,8 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		rp.SetPayload(flv_tag)
 		sendPacket(rp)
 
-		rtp_buf := make([]byte, rp.InUse()) //复制一份放入map之中
-		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-		streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
-		//fmt.Println(rtp_buf)
-		//fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
-		rp.FreePacket() //释放内存
+		streamInfo.RtpQueue.Enqueue(rp.Buffer()[:rp.InUse()], rp.Sequence()) // 加入 RtpQueue
+		rp.FreePacket()                                                      // 释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
@@ -142,25 +137,20 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 			}
 			sendPacket(rp)
 
-			rtp_buf := make([]byte, rp.InUse())
-			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-			streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
-			//fmt.Println("当前rtp队列长度：", rtp_queue.queue.Len(), " 队列数据量：", rtp_queue.bytesInQueue)
-			rp.FreePacket() //释放内存
+			streamInfo.RtpQueue.Enqueue(rp.Buffer()[:rp.InUse()], rp.Sequence())
+			rp.FreePacket()
 		}
 	}
 
-	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(tagdata)+11, ",rtp timestamp: ", timestamp)
+	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
 	err := streamInfo.flvFile.WriteTagDirect(flv_tag)
-	if err != nil {
-		return
-	}
+	checkError(err)
 }
 
 //	func sendPacket(rp *rtp.DataPacket) {
 //		if USE_MULTICAST { //组播
-//			sendPacketmulticast(rp)
+//			sendPacketMulticast(rp)
 //		} else { //单播
 //			r := rand.Intn(1000)
 //			if float64(r)/1000.0 >= PACKET_LOSS_RATE {
@@ -171,12 +161,12 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 //			}
 //		}
 //	}
+
+// 枚举所有的 UdpConns 列表，发送当前 rp.Buffer()[:rp.InUse()] 数据
 func sendPacket(rp *rtp.DataPacket) {
 	for _, udpConn := range UdpConns.Values() {
 		_, err := udpConn.(*net.UDPConn).Write(rp.Buffer()[:rp.InUse()])
-		if err != nil {
-			return
-		}
+		checkError(err)
 	}
 }
 
@@ -221,7 +211,8 @@ func startRtmp(stream *rtmp.RtmpStream) {
 	} else {
 		log.Info("RTMP Listen On ", rtmpAddr)
 	}
-	rtmpServer.Serve(rtmpListen)
+	err := rtmpServer.Serve(rtmpListen)
+	checkError(err)
 }
 
 func startAPI(stream *rtmp.RtmpStream) {
@@ -241,7 +232,8 @@ func startAPI(stream *rtmp.RtmpStream) {
 				}
 			}()
 			log.Info("HTTP-API listen On ", apiAddr)
-			opServer.Serve(opListen)
+			err = opServer.Serve(opListen)
+			checkError(err)
 		}()
 	}
 }
@@ -257,45 +249,42 @@ func init() {
 }
 
 // 打印历史信息
-func showRecvDataSize() {
-	for {
-		_ = <-time.After(5 * time.Second)
-		fmt.Printf("Audio size: %d bytes; Vedio size: %d bytes\n", audioDataSize, videoDataSize)
-	}
-}
+//func showRecvDataSize() {
+//	for {
+//		_ = <-time.After(5 * time.Second)
+//		fmt.Printf("Audio size: %d bytes; Video size: %d bytes\n", audioDataSize, videoDataSize)
+//	}
+//}
 
 // 启动quic服务
 func startQuic() {
 	tlsConf, err := generateTLSConfig()
-	if err != nil {
-		panic(err)
-	}
-
+	checkError(err)
 	ln, err := quic.ListenAddr("localhost:4242", tlsConf, nil)
 	checkError(err)
 
 	for {
 		fmt.Println("quic server started on ", "localhost"+conf.QUIC_ADDR)
-		conn := WaitForQuicConn(ln)
-		go conn.Serve()
+		quicConn := WaitForQuicConn(ln)
+		go quicConn.Serve()
 	}
-
 }
 
+// 为不同的边缘节点初始化 udpConn
 func initUdpConns() {
 	UdpConns = arraylist.New()
 	for i := 0; i < len(conf.CLIENT_ADDR_LIST); i++ {
 		addr := conf.CLIENT_ADDR_LIST[i]
-		newConn, err := NewUDPConn(addr)
+		udpConn, err := NewUDPConn(addr)
 		checkError(err)
-		UdpConns.Add(newConn)
+		UdpConns.Add(udpConn)
 	}
 }
 
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("livego panic: ", r)
+			log.Error("Rtmp Http FLv panic: ", r)
 			time.Sleep(1 * time.Second)
 		}
 	}()
@@ -313,8 +302,7 @@ func main() {
 
 	// close flv file
 	defer func() {
-		vals := ChannelMap.Values()
-		for _, val := range vals {
+		for _, val := range ChannelMap.Values() {
 			flvFile := val.(StreamInfo).flvFile
 			if flvFile != nil {
 				flvFile.Close()
@@ -333,5 +321,4 @@ func main() {
 
 	startAPI(stream)
 	startRtmp(stream)
-
 }
