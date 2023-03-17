@@ -14,11 +14,9 @@ import (
 	"time"
 )
 
-func WaitForQuicConn(ln quic.Listener) *conn {
-
-	protoconn, err := ln.Accept(context.Background())
-
-	conn, _ := newConn(protoconn, true)
+func WaitForQuicConn(ln quic.Listener) *Conn {
+	protoConn, err := ln.Accept(context.Background())
+	conn, _ := newConn(protoConn, true)
 	checkError(err)
 
 	fmt.Println("Quic Established connection, remote addr: ", protoconn.RemoteAddr())
@@ -44,9 +42,7 @@ func NewUDPConn(address string) (*net.UDPConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return conn, nil
-
 }
 
 func checkError(err error) {
