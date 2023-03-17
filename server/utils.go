@@ -21,7 +21,7 @@ func WaitForQuicConn(ln quic.Listener) *conn {
 	conn, _ := newConn(protoconn, true)
 	checkError(err)
 
-	fmt.Println("Quic Established connection")
+	fmt.Println("Quic Established connection, remote addr: ", protoconn.RemoteAddr())
 	return conn
 }
 
