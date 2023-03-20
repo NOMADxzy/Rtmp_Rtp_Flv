@@ -264,11 +264,11 @@ func init() {
 func startQuic() {
 	tlsConf, err := generateTLSConfig()
 	checkError(err)
-	ln, err := quic.ListenAddr("localhost:4242", tlsConf, nil)
+	ln, err := quic.ListenAddr("0.0.0.0"+conf.QUIC_ADDR, tlsConf, nil)
+	fmt.Println("quic server listening on ", "0.0.0.0"+conf.QUIC_ADDR)
 	checkError(err)
 
 	for {
-		fmt.Println("quic server started on ", "localhost"+conf.QUIC_ADDR)
 		quicConn := WaitForQuicConn(ln)
 		go quicConn.Serve()
 	}
