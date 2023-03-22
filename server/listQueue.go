@@ -123,6 +123,7 @@ func (q *listQueue) Check() bool {
 func (q *listQueue) printInfo() {
 	for {
 		_ = <-time.After(5 * time.Second)
+		q.m.Lock()
 		if q.Closed {
 			return
 		}
@@ -131,5 +132,6 @@ func (q *listQueue) printInfo() {
 		if !q.Check() {
 			panic("rtp queue params err")
 		}
+		q.m.Unlock()
 	}
 }

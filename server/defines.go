@@ -41,12 +41,14 @@ type Config struct {
 	RTP_CACHE_SIZE   int      `yaml:"rtp_cache_size"`
 	QUIC_ADDR        string   `yaml:"quic_addr"`
 	CLIENT_ADDR_LIST []string `yaml:"client_addr_list"`
+	ENABLE_RECORD    bool     `yaml:"enable_record"`
 }
 
 var conf = &Config{ //default config
 	RTP_CACHE_SIZE:   5000,
 	QUIC_ADDR:        ":4242",
 	CLIENT_ADDR_LIST: []string{"127.0.0.1:5222"},
+	ENABLE_RECORD:    false,
 }
 
 func (conf *Config) readFromXml(src string) {

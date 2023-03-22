@@ -45,7 +45,11 @@ func addChannel(channel string) *StreamInfo {
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
 	ssrcStream.SetPayloadType(77)
 	//创建录制文件
-	flvFile := createFlvFile(channel)
+	var flvFile *File
+	if conf.ENABLE_RECORD {
+		flvFile = createFlvFile(channel)
+		fmt.Println("Create record file path = ", "/", channel+".flv")
+	}
 
 	//创建rtp缓存队列
 	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE, SSRC)
@@ -148,8 +152,10 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 
 	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
-	err := streamInfo.flvFile.WriteTagDirect(flv_tag)
-	checkError(err)
+	if streamInfo.flvFile != nil {
+		err := streamInfo.flvFile.WriteTagDirect(flv_tag)
+		checkError(err)
+	}
 }
 
 //	func sendPacket(rp *rtp.DataPacket) {
