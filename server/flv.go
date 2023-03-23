@@ -102,17 +102,17 @@ func (flvFile *File) Close() {
 	flvFile.file.Close()
 }
 
-// Data with audio header
+// WriteAudioTag Data with audio header
 func (flvFile *File) WriteAudioTag(data []byte, timestamp uint32) (err error) {
 	return flvFile.WriteTag(data, AUDIO_TAG, timestamp)
 }
 
-// Data with video header
+// WriteVideoTag Data with video header
 func (flvFile *File) WriteVideoTag(data []byte, timestamp uint32) (err error) {
 	return flvFile.WriteTag(data, VIDEO_TAG, timestamp)
 }
 
-//Write tag bytes
+// WriteTagDirect Write tag bytes
 func (flvFile *File) WriteTagDirect(tag []byte) (err error) {
 	if _, err = flvFile.file.Write(tag); err != nil {
 		return
@@ -125,7 +125,7 @@ func (flvFile *File) WriteTagDirect(tag []byte) (err error) {
 	return nil
 }
 
-//创建一个flv Tag
+// CreateTag 创建一个flv Tag
 func CreateTag(tag []byte, data []byte, tagType byte, timestamp uint32) (int, error) {
 
 	binary.BigEndian.PutUint32(tag[3:7], timestamp)
@@ -137,7 +137,7 @@ func CreateTag(tag []byte, data []byte, tagType byte, timestamp uint32) (int, er
 	return len(data) + 11, nil
 }
 
-// Write tag
+// WriteTag Write tag
 func (flvFile *File) WriteTag(data []byte, tagType byte, timestamp uint32) (err error) {
 	if timestamp < flvFile.lastTimestamp {
 		timestamp = flvFile.lastTimestamp
@@ -162,31 +162,31 @@ func (flvFile *File) WriteTag(data []byte, tagType byte, timestamp uint32) (err 
 		return
 	}
 
-	//tmpBuf := make([]byte, 4)
-	//// Write tag header
-	//if _, err = flvFile.file.Write([]byte{tagType}); err != nil {
-	//	return
-	//}
+	// tmpBuf := make([]byte, 4)
+	// // Write tag header
+	// if _, err = flvFile.file.Write([]byte{tagType}); err != nil {
+	// 	return
+	// }
 
-	//// Write tag size
-	//binary.BigEndian.PutUint32(tmpBuf, uint32(len(data)))
-	//if _, err = flvFile.file.Write(tmpBuf[1:]); err != nil {
-	//	return
-	//}
+	// // Write tag size
+	// binary.BigEndian.PutUint32(tmpBuf, uint32(len(data)))
+	// if _, err = flvFile.file.Write(tmpBuf[1:]); err != nil {
+	// 	return
+	// }
 
-	//// Write timestamp
-	//binary.BigEndian.PutUint32(tmpBuf, timestamp)
-	//if _, err = flvFile.file.Write(tmpBuf[1:]); err != nil {
-	//	return
-	//}
-	//if _, err = flvFile.file.Write(tmpBuf[:1]); err != nil {
-	//	return
-	//}
+	// // Write timestamp
+	// binary.BigEndian.PutUint32(tmpBuf, timestamp)
+	// if _, err = flvFile.file.Write(tmpBuf[1:]); err != nil {
+	// 	return
+	// }
+	// if _, err = flvFile.file.Write(tmpBuf[:1]); err != nil {
+	// 	return
+	// }
 
-	//// Write stream ID
-	//if _, err = flvFile.file.Write([]byte{0, 0, 0}); err != nil {
-	//	return
-	//}
+	// // Write stream ID
+	// if _, err = flvFile.file.Write([]byte{0, 0, 0}); err != nil {
+	// 	return
+	// }
 
 	// Write data
 	if _, err = flvFile.file.Write(data); err != nil {
@@ -199,9 +199,9 @@ func (flvFile *File) WriteTag(data []byte, tagType byte, timestamp uint32) (err 
 	}
 
 	// Sync to disk
-	//if err = flvFile.file.Sync(); err != nil {
-	//	return
-	//}
+	// if err = flvFile.file.Sync(); err != nil {
+	// 	return
+	// }
 	return
 }
 

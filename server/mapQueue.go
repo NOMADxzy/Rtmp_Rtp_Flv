@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-//type rtpQueueItem struct {
-//	packet *RTPPacket
-//	seq    uint16
-//}
+// type rtpQueueItem struct {
+// 	packet *RTPPacket
+// 	seq    uint16
+// }
 
 // 通过map实现的rtp缓存
 type mapQueue struct {
@@ -56,7 +56,7 @@ func (q *mapQueue) Clear() {
 	q.totalLost = 0
 	q.bytesInQueue = 0
 	q.Size = 0
-	//q = nil
+	// q = nil
 }
 
 func (q *mapQueue) Enqueue(pkt []byte, seq uint16) {

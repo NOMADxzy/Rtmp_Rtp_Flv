@@ -118,14 +118,14 @@ func (c *Conn) Serve() {
 		checkError(err)
 		fmt.Println("收到重传请求，seq: ", seq)
 
-		//发送rtp数据包给客户
+		// 发送rtp数据包给客户
 		val, f := ChannelMap.Get(ssrc)
 		if !f {
 			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
 			continue
 		}
 		pkt := val.(*StreamInfo).RtpQueue.GetPkt(seq)
-		//fmt.Println(pkt)
+		// fmt.Println(pkt)
 		if pkt != nil {
 			_, err = c.SendRtp(pkt)
 			checkError(err)

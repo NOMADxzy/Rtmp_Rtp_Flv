@@ -8,6 +8,7 @@ import (
 	_ "strconv"
 )
 
+// HEADER_BYTES flvHeader + scriptTag
 var (
 	HEADER_BYTES = []byte{'F', 'L', 'V', 0x01, 0x05, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00,
 		0x12, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 11
@@ -44,7 +45,7 @@ type Config struct {
 	ENABLE_RECORD    bool     `yaml:"enable_record"`
 }
 
-var conf = &Config{ //default config
+var conf = &Config{ // default config
 	RTP_CACHE_SIZE:   5000,
 	QUIC_ADDR:        ":4242",
 	CLIENT_ADDR_LIST: []string{"127.0.0.1:5222"},
@@ -60,6 +61,7 @@ func (conf *Config) readFromXml(src string) {
 	err = yaml.Unmarshal(content, conf)
 	checkError(err)
 }
+
 func (conf *Config) writeToXml(src string) {
 	data, err := yaml.Marshal(conf)
 	checkError(err)

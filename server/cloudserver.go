@@ -39,19 +39,19 @@ type StreamInfo struct {
 // 创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
 func addChannel(channel string) *StreamInfo {
 	SSRC += uint32(1)
-	//创建SSRC流
+	// 创建SSRC流
 	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{
 		IPAddr: local.IP, DataPort: localPort, CtrlPort: localPort + 1, Zone: localZone}, SSRC, RTP_INITIAL_SEQ)
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
 	ssrcStream.SetPayloadType(77)
-	//创建录制文件
+	// 创建录制文件
 	var flvFile *File
 	if conf.ENABLE_RECORD {
 		flvFile = createFlvFile(channel)
 		fmt.Println("Create record file path = ", "/", channel+".flv")
 	}
 
-	//创建rtp缓存队列
+	// 创建rtp缓存队列
 	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE, SSRC)
 	go rtpQueue.printInfo()
 
@@ -80,7 +80,9 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	if val, ok := ChannelMap.Get(stream.Ssrc()); ok {
 		streamInfo := val.(*StreamInfo)
-		streamInfo.flvFile.Close()
+		if conf.ENABLE_RECORD {
+			streamInfo.flvFile.Close()
+		}
 		streamInfo.RtpQueue.Closed = true
 	}
 	ChannelMap.Remove(stream.Ssrc())
@@ -150,8 +152,8 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		}
 	}
 
-	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
-	//fmt.Println(flv_tag)
+	// fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
+	// fmt.Println(flv_tag)
 	if streamInfo.flvFile != nil {
 		err := streamInfo.flvFile.WriteTagDirect(flv_tag)
 		checkError(err)
@@ -259,12 +261,12 @@ func init() {
 }
 
 // 打印历史信息
-//func showRecvDataSize() {
-//	for {
-//		_ = <-time.After(5 * time.Second)
-//		fmt.Printf("Audio size: %d bytes; Video size: %d bytes\n", audioDataSize, videoDataSize)
-//	}
-//}
+// func showRecvDataSize() {
+// 	for {
+// 		_ = <-time.After(5 * time.Second)
+// 		fmt.Printf("Audio size: %d bytes; Video size: %d bytes\n", audioDataSize, videoDataSize)
+// 	}
+// }
 
 // 启动quic服务
 func startQuic() {
@@ -305,10 +307,10 @@ func main() {
 	`, VERSION)
 
 	tpLocal, _ := rtp.NewTransportUDP(local, localPort, localZone)
-	rsLocal = rtp.NewSession(tpLocal, tpLocal) //用来创建rtp包
-	//rsLocal.AddRemote(&rtp.Address{remote.IP, remotePort, remotePort + 1, remoteZone})
-	//rsLocal.StartSession()
-	//defer rsLocal.CloseSession()
+	rsLocal = rtp.NewSession(tpLocal, tpLocal) // 用来创建rtp包
+	// rsLocal.AddRemote(&rtp.Address{remote.IP, remotePort, remotePort + 1, remoteZone})
+	// rsLocal.StartSession()
+	// defer rsLocal.CloseSession()
 
 	// close flv file
 	defer func() {
@@ -326,7 +328,7 @@ func main() {
 
 	conf.readFromXml("./config.yaml")
 	initUdpConns()
-	//go showRecvDataSize()
+	// go showRecvDataSize()
 	go startQuic()
 
 	startAPI(stream)
