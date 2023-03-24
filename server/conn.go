@@ -29,10 +29,6 @@ func newConn(sess quic.Connection, is_server bool) (*Conn, error) {
 	}, nil
 }
 
-//	func (c *conn) DataStream() quic.Stream {
-//		return c.dataStream
-//	}
-
 func (c *Conn) ReadSeq(seq *uint16) (int, error) {
 	if c.infoStream == nil {
 		var err error
@@ -124,7 +120,7 @@ func (c *Conn) Serve() {
 			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
 			continue
 		}
-		pkt := val.(*StreamInfo).RtpQueue.GetPkt(seq)
+		pkt := val.(*StreamEntity).RtpQueue.GetPkt(seq)
 		//fmt.Println(pkt)
 		if pkt != nil {
 			_, err = c.SendRtp(pkt)

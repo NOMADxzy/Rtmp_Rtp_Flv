@@ -24,10 +24,10 @@ var videoDataSize int64
 var audioDataSize int64
 var VERSION = "master"
 var SSRC = uint32(1020303)
-var ChannelMap *hashmap.Map // key:SSRC，val:streamInfo
+var ChannelMap *hashmap.Map // key:SSRC，val:streamEntity
 var UdpConns *arraylist.List
 
-type StreamInfo struct {
+type StreamEntity struct {
 	strLocalIdx uint32
 	SSRC        uint32
 	channel     string
@@ -37,11 +37,11 @@ type StreamInfo struct {
 }
 
 // 创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
-func addChannel(channel string) *StreamInfo {
+func addChannel(channel string) *StreamEntity {
 	SSRC += uint32(1)
 	//创建SSRC流
 	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{
-		IPAddr: local.IP, DataPort: localPort, CtrlPort: localPort + 1, Zone: localZone}, SSRC, RTP_INITIAL_SEQ)
+		IPAddr: local.IP, DataPort: conf.RTP_PORT, CtrlPort: conf.RTP_PORT + 1, Zone: localZone}, SSRC, RTP_INITIAL_SEQ)
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
 	ssrcStream.SetPayloadType(77)
 	//创建录制文件
@@ -55,7 +55,7 @@ func addChannel(channel string) *StreamInfo {
 	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE, SSRC)
 	go rtpQueue.printInfo()
 
-	streamInfo := &StreamInfo{
+	streamEntity := &StreamEntity{
 		strLocalIdx: strLocalIdx,
 		SSRC:        SSRC,
 		channel:     channel,
@@ -63,8 +63,8 @@ func addChannel(channel string) *StreamInfo {
 		RtpQueue:    rtpQueue,
 	}
 
-	ChannelMap.Put(SSRC, streamInfo)
-	return streamInfo
+	ChannelMap.Put(SSRC, streamEntity)
+	return streamEntity
 }
 
 type MyMessageHandler struct{}
@@ -79,9 +79,9 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 // OnStreamClosed 自定义流停止方法
 func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	if val, ok := ChannelMap.Get(stream.Ssrc()); ok {
-		streamInfo := val.(*StreamInfo)
-		streamInfo.flvFile.Close()
-		streamInfo.RtpQueue.Closed = true
+		streamEntity := val.(*StreamEntity)
+		streamEntity.flvFile.Close()
+		streamEntity.RtpQueue.Closed = true
 	}
 	ChannelMap.Remove(stream.Ssrc())
 	fmt.Println("StreamClosed SSRC = ", stream.Ssrc())
@@ -89,28 +89,32 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 
 // OnReceived 自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
-	var streamInfo *StreamInfo
+	var streamEntity *StreamEntity
 	val, f := ChannelMap.Get(s.Ssrc())
 	if !f {
-		streamInfo = addChannel(s.Channel())
+		streamEntity = addChannel(s.Channel())
 	} else {
-		streamInfo = val.(*StreamInfo)
+		streamEntity = val.(*StreamEntity)
 	}
 
 	// metaData 相当于 flvTagBody
 	metadata := message.Data
-	var flv_tag []byte
-	streamInfo.timestamp += uint32(1)
+	var flvTag []byte
+	streamEntity.timestamp += uint32(1)
+
+	if message.TimeStamp == 0 {
+		s.StartTime = time.Now().UnixMilli()
+	}
 
 	// 创建音频或视频 flvTag = flvTagHeader (11 bytes) + flvTagBody
 	if message.IsVideo {
-		flv_tag = make([]byte, 11+len(metadata))
-		_, err := CreateTag(flv_tag, metadata, VIDEO_TAG, message.TimeStamp)
+		flvTag = make([]byte, 11+len(metadata))
+		_, err := CreateTag(flvTag, metadata, VIDEO_TAG, message.TimeStamp)
 		checkError(err)
 		videoDataSize += int64(len(message.Data))
 	} else if message.IsAudio {
-		flv_tag = make([]byte, 11+len(metadata))
-		_, err := CreateTag(flv_tag, metadata, AUDIO_TAG, message.TimeStamp)
+		flvTag = make([]byte, 11+len(metadata))
+		_, err := CreateTag(flvTag, metadata, AUDIO_TAG, message.TimeStamp)
 		checkError(err)
 		audioDataSize += int64(len(message.Data))
 	} else {
@@ -118,42 +122,42 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	}
 
 	// 发送flv_tag，超长则分片发送
-	flv_tag_len := len(flv_tag)
+	flv_tag_len := len(flvTag)
 	var rp *rtp.DataPacket
 	if flv_tag_len <= MAX_RTP_PAYLOAD_LEN {
-		rp = rsLocal.NewDataPacketForStream(streamInfo.strLocalIdx, streamInfo.timestamp)
+		rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 		rp.SetMarker(true)
-		rp.SetPayload(flv_tag)
+		rp.SetPayload(flvTag)
 		sendPacket(rp)
 
 		rtp_buf := make([]byte, rp.InUse()) // 深拷贝：需要提前复制
 		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-		streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence()) // 加入 RtpQueue
-		rp.FreePacket()                                     // 释放内存
+		streamEntity.RtpQueue.Enqueue(rtp_buf, rp.Sequence()) // 加入 RtpQueue
+		rp.FreePacket()                                       // 释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
-			rp = rsLocal.NewDataPacketForStream(streamInfo.strLocalIdx, streamInfo.timestamp)
+			rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 			last_slice := i == slice_num-1
 			rp.SetMarker(last_slice)
 			if !last_slice {
-				rp.SetPayload(flv_tag[i*MAX_RTP_PAYLOAD_LEN : (i+1)*MAX_RTP_PAYLOAD_LEN])
+				rp.SetPayload(flvTag[i*MAX_RTP_PAYLOAD_LEN : (i+1)*MAX_RTP_PAYLOAD_LEN])
 			} else {
-				rp.SetPayload(flv_tag[i*MAX_RTP_PAYLOAD_LEN:])
+				rp.SetPayload(flvTag[i*MAX_RTP_PAYLOAD_LEN:])
 			}
 			sendPacket(rp)
 
 			rtp_buf := make([]byte, rp.InUse())
 			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-			streamInfo.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
+			streamEntity.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
 			rp.FreePacket()
 		}
 	}
 
 	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
-	if streamInfo.flvFile != nil {
-		err := streamInfo.flvFile.WriteTagDirect(flv_tag)
+	if streamEntity.flvFile != nil {
+		err := streamEntity.flvFile.WriteTagDirect(flvTag)
 		checkError(err)
 	}
 }
@@ -181,7 +185,7 @@ func sendPacket(rp *rtp.DataPacket) {
 }
 
 func startRtmp(stream *rtmp.RtmpStream) {
-	rtmpAddr := configure.Config.GetString("rtmp_addr")
+	RtmpAddr := conf.RTMP_ADDR
 	isRtmps := configure.Config.GetBool("enable_rtmps")
 
 	var rtmpListen net.Listener
@@ -193,7 +197,7 @@ func startRtmp(stream *rtmp.RtmpStream) {
 			log.Fatal(err)
 		}
 
-		rtmpListen, err = tls.Listen("tcp", rtmpAddr, &tls.Config{
+		rtmpListen, err = tls.Listen("tcp", RtmpAddr, &tls.Config{
 			Certificates: []tls.Certificate{cert},
 		})
 		if err != nil {
@@ -201,7 +205,7 @@ func startRtmp(stream *rtmp.RtmpStream) {
 		}
 	} else {
 		var err error
-		rtmpListen, err = net.Listen("tcp", rtmpAddr)
+		rtmpListen, err = net.Listen("tcp", RtmpAddr)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -217,24 +221,22 @@ func startRtmp(stream *rtmp.RtmpStream) {
 		}
 	}()
 	if isRtmps {
-		log.Info("RTMPS Listen On ", rtmpAddr)
+		log.Info("RTMPS Listen On ", RtmpAddr)
 	} else {
-		log.Info("RTMP Listen On ", rtmpAddr)
+		log.Info("RTMP Listen On ", RtmpAddr)
 	}
 	err := rtmpServer.Serve(rtmpListen)
 	checkError(err)
 }
 
 func startAPI(stream *rtmp.RtmpStream) {
-	apiAddr := configure.Config.GetString("api_addr")
-	rtmpAddr := configure.Config.GetString("rtmp_addr")
-
+	apiAddr := conf.API_ADDR
 	if apiAddr != "" {
 		opListen, err := net.Listen("tcp", apiAddr)
 		if err != nil {
 			log.Fatal(err)
 		}
-		opServer := api.NewServer(stream, rtmpAddr)
+		opServer := api.NewServer(stream, conf.RTMP_ADDR)
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -304,7 +306,7 @@ func main() {
         version: %s
 	`, VERSION)
 
-	tpLocal, _ := rtp.NewTransportUDP(local, localPort, localZone)
+	tpLocal, _ := rtp.NewTransportUDP(local, conf.RTP_PORT, localZone)
 	rsLocal = rtp.NewSession(tpLocal, tpLocal) //用来创建rtp包
 	//rsLocal.AddRemote(&rtp.Address{remote.IP, remotePort, remotePort + 1, remoteZone})
 	//rsLocal.StartSession()
@@ -313,7 +315,7 @@ func main() {
 	// close flv file
 	defer func() {
 		for _, val := range ChannelMap.Values() {
-			flvFile := val.(StreamInfo).flvFile
+			flvFile := val.(StreamEntity).flvFile
 			if flvFile != nil {
 				flvFile.Close()
 			}

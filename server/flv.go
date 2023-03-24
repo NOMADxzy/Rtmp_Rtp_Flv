@@ -33,13 +33,15 @@ func CreateFile(name string) (flvFile *File, err error) {
 	}
 	// Write flv header
 	if _, err = file.Write(HEADER_BYTES); err != nil {
-		file.Close()
+		err := file.Close()
+		checkError(err)
 		return
 	}
 
 	// Sync to disk
 	if err = file.Sync(); err != nil {
-		file.Close()
+		err := file.Close()
+		checkError(err)
 		return
 	}
 
@@ -64,11 +66,13 @@ func OpenFile(name string) (flvFile *File, err error) {
 
 	var size int64
 	if size, err = file.Seek(0, 2); err != nil {
-		file.Close()
+		err := file.Close()
+		checkError(err)
 		return
 	}
 	if _, err = file.Seek(0, 0); err != nil {
-		file.Close()
+		err := file.Close()
+		checkError(err)
 		return
 	}
 
@@ -85,13 +89,15 @@ func OpenFile(name string) (flvFile *File, err error) {
 	flvHeader := make([]byte, remain)
 
 	if _, err = io.ReadFull(file, flvHeader); err != nil {
-		file.Close()
+		err := file.Close()
+		checkError(err)
 		return
 	}
 	if flvHeader[0] != 'F' ||
 		flvHeader[1] != 'L' ||
 		flvHeader[2] != 'V' {
-		file.Close()
+		err := file.Close()
+		checkError(err)
 		return nil, errors.New("File format error")
 	}
 
@@ -251,7 +257,7 @@ func (flvFile *File) ReadTag() (header *TagHeader, data []byte, err error) {
 	if _, err = io.ReadFull(flvFile.file, tmpBuf); err != nil {
 		return
 	}
-	header.Timestamp = uint32(tmpBuf[3])<<32 + uint32(tmpBuf[0])<<16 + uint32(tmpBuf[1])<<8 + uint32(tmpBuf[2])
+	header.Timestamp = uint32(tmpBuf[3])<<24 + uint32(tmpBuf[0])<<16 + uint32(tmpBuf[1])<<8 + uint32(tmpBuf[2])
 
 	// Read stream ID
 	if _, err = io.ReadFull(flvFile.file, tmpBuf[1:]); err != nil {
@@ -277,7 +283,8 @@ func (flvFile *File) IsFinished() bool {
 	return (err != nil) || (pos >= flvFile.size)
 }
 func (flvFile *File) LoopBack() {
-	flvFile.file.Seek(HEADER_LEN, 0)
+	_, err := flvFile.file.Seek(HEADER_LEN, 0)
+	checkError(err)
 }
 func (flvFile *File) FilePath() string {
 	return flvFile.name

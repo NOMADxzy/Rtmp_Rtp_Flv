@@ -31,11 +31,10 @@ const (
 )
 
 // rtp相关
-var localPort = 5220
 var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
 var rsLocal *rtp.Session
 var localZone = ""
-var BusyTime = 0
+var BusyTime = 0 //记录边缘拥塞次数
 
 // Config app参数
 type Config struct {
@@ -43,6 +42,9 @@ type Config struct {
 	QUIC_ADDR        string   `yaml:"quic_addr"`
 	CLIENT_ADDR_LIST []string `yaml:"client_addr_list"`
 	ENABLE_RECORD    bool     `yaml:"enable_record"`
+	RTP_PORT         int      `yaml:"rtp_port"`
+	RTMP_ADDR        string   `yaml:"rtmp_addr"`
+	API_ADDR         string   `yaml:"api_addr"`
 }
 
 var conf = &Config{ //default config
@@ -50,6 +52,9 @@ var conf = &Config{ //default config
 	QUIC_ADDR:        ":4242",
 	CLIENT_ADDR_LIST: []string{"127.0.0.1:5222"},
 	ENABLE_RECORD:    false,
+	RTP_PORT:         5220,
+	RTMP_ADDR:        ":1935",
+	API_ADDR:         ":8090",
 }
 
 func (conf *Config) readFromXml(src string) {
