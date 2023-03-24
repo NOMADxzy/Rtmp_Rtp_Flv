@@ -26,7 +26,7 @@ const (
 	SCRIPT_DATA_TAG     = byte(0x12)
 	DURATION_OFFSET     = 53
 	HEADER_LEN          = 13
-	MAX_RTP_PAYLOAD_LEN = 1000
+	MAX_RTP_PAYLOAD_LEN = 1180
 	RTP_INITIAL_SEQ     = uint16(65000)
 )
 
@@ -35,6 +35,7 @@ var localPort = 5220
 var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
 var rsLocal *rtp.Session
 var localZone = ""
+var BusyTime = 0
 
 // Config app参数
 type Config struct {

@@ -9,16 +9,17 @@ import (
 
 // 通过arraylist实现的rtp缓存
 type listQueue struct {
-	m            sync.RWMutex
-	maxSize      int
-	bytesInQueue int
-	FirstSeq     uint16
-	LastSeq      uint16
-	queue        *arraylist.List
-	totalSend    int
-	totalLost    int
-	Closed       bool
-	ssrc         uint32
+	m               sync.RWMutex
+	maxSize         int
+	bytesInQueue    int
+	FirstSeq        uint16
+	LastSeq         uint16
+	queue           *arraylist.List
+	totalSend       int
+	totalLost       int
+	Closed          bool
+	ssrc            uint32
+	previousLostSeq uint16
 }
 
 func newlistQueue(size int, ssrc uint32) *listQueue {
@@ -82,6 +83,12 @@ func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 	defer q.m.RUnlock()
 
 	q.totalLost += 1
+	if targetSeq+1 == q.previousLostSeq { //连续的三个seq丢失
+		BusyTime += 1
+		fmt.Printf("[warning] Continuous packet loss, -------------------- BusyTime  : %v \n", BusyTime)
+	}
+	q.previousLostSeq = targetSeq
+
 	front := q.FirstSeq
 	back := q.LastSeq
 
@@ -129,9 +136,9 @@ func (q *listQueue) printInfo() {
 		}
 		fmt.Printf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
 			q.ssrc, q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
-		if !q.Check() {
-			panic("rtp queue params err")
-		}
+		//if !q.Check() {
+		//	panic("rtp queue params err")
+		//}
 		q.m.Unlock()
 	}
 }

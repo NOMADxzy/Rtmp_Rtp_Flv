@@ -116,7 +116,7 @@ func (c *Conn) Serve() {
 
 		_, err = c.ReadSeq(&seq)
 		checkError(err)
-		fmt.Println("收到重传请求，seq: ", seq)
+		fmt.Printf("收到重传请求: seq: %v, ssrc: %v \n", seq, ssrc)
 
 		//发送rtp数据包给客户
 		val, f := ChannelMap.Get(ssrc)

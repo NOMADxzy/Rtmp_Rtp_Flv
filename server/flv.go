@@ -99,7 +99,10 @@ func OpenFile(name string) (flvFile *File, err error) {
 }
 
 func (flvFile *File) Close() {
-	flvFile.file.Close()
+	if flvFile != nil {
+		err := flvFile.file.Close()
+		checkError(err)
+	}
 }
 
 // Data with audio header
