@@ -34,6 +34,7 @@ type StreamEntity struct {
 	flvFile     *File
 	timestamp   uint32
 	RtpQueue    *listQueue
+	NextSeq     uint16
 }
 
 // 创建一个新的频道，相应的录制文件、rtp发送流、rtp缓存队列
@@ -53,6 +54,7 @@ func addChannel(channel string) *StreamEntity {
 
 	//创建rtp缓存队列
 	var rtpQueue = newlistQueue(conf.RTP_CACHE_SIZE, SSRC)
+	go rtpQueue.Run()
 	go rtpQueue.printInfo()
 
 	streamEntity := &StreamEntity{
@@ -61,6 +63,7 @@ func addChannel(channel string) *StreamEntity {
 		channel:     channel,
 		flvFile:     flvFile,
 		RtpQueue:    rtpQueue,
+		NextSeq:     RTP_INITIAL_SEQ,
 	}
 
 	ChannelMap.Put(SSRC, streamEntity)
@@ -128,12 +131,14 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 		rp.SetMarker(true)
 		rp.SetPayload(flvTag)
+		rp.SetSequence(streamEntity.NextSeq)
+		streamEntity.NextSeq += 1
 		sendPacket(rp)
 
 		rtp_buf := make([]byte, rp.InUse()) // 深拷贝：需要提前复制
 		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-		streamEntity.RtpQueue.Enqueue(rtp_buf, rp.Sequence()) // 加入 RtpQueue
-		rp.FreePacket()                                       // 释放内存
+		streamEntity.RtpQueue.packetQueue <- rtp_buf
+		rp.FreePacket() // 释放内存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
@@ -145,11 +150,13 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 			} else {
 				rp.SetPayload(flvTag[i*MAX_RTP_PAYLOAD_LEN:])
 			}
+			rp.SetSequence(streamEntity.NextSeq)
+			streamEntity.NextSeq += 1
 			sendPacket(rp)
 
 			rtp_buf := make([]byte, rp.InUse())
 			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-			streamEntity.RtpQueue.Enqueue(rtp_buf, rp.Sequence())
+			streamEntity.RtpQueue.packetQueue <- rtp_buf
 			rp.FreePacket()
 		}
 	}

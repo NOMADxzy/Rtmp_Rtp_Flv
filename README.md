@@ -32,7 +32,7 @@
 监听rtmp`1935`端口`./cloudserver`
 
 ### 2. 启动[边缘节点](https://github.com/NOMADxzy/Rtp_Http_Flv)
-接收云端节点发过来的rtp流，并提供httpflv服务：`./Rtp_Http_Flv -httpflv_addr :7002 -udp_addr 127.0.0.1:5222 -pack_loss 0.002`
+接收云端节点发过来的rtp流，并提供httpflv服务：`./edgeserver -udp_addr :5222`
 
 ### 3. 使用`ffmpeg`等工具推流到云端节点
 
@@ -51,6 +51,10 @@ quic_addr: :4242     #quic服务的监听地址
 client_addr_list:    #边缘节点的udp及端口号，向这些地址发送数据
 - 127.0.0.1:5222
 - 127.0.0.1:5224
+enable_record: false
+rtp_port: 5220
+rtmp_addr: :1935
+api_addr: :8090
 ```
 
 

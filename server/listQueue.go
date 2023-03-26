@@ -20,10 +20,11 @@ type listQueue struct {
 	Closed          bool
 	ssrc            uint32
 	previousLostSeq uint16
+	packetQueue     chan []byte
 }
 
 func newlistQueue(size int, ssrc uint32) *listQueue {
-	return &listQueue{queue: arraylist.New(), maxSize: size, ssrc: ssrc}
+	return &listQueue{queue: arraylist.New(), maxSize: size, ssrc: ssrc, packetQueue: make(chan []byte, RTP_CACHE_CHAN_SIZE)}
 }
 
 func (q *listQueue) SizeOfNextRTP() int {
@@ -52,6 +53,18 @@ func (q *listQueue) Clear() {
 	q.totalLost = 0
 }
 
+func (q *listQueue) Run() {
+	for {
+		pkt, ok := <-q.packetQueue
+		if ok {
+			tmp := make([]byte, 2)
+			tmp = pkt[2:4]
+			seq := uint16(tmp[0])<<8 + uint16(tmp[1])
+			q.Enqueue(pkt, seq)
+		}
+	}
+}
+
 func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 	q.m.Lock()
 	defer q.m.Unlock()
@@ -64,15 +77,10 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 	if q.queue.Size() > q.maxSize { // 超出最大长度
 		val, _ := q.queue.Get(0)
 		q.queue.Remove(0)
-		// q.FirstSeq = (q.FirstSeq + 1) % uint16(65536)
-		if q.FirstSeq == uint16(65535) {
-			q.FirstSeq = 0
-		} else {
-			q.FirstSeq += 1
-		}
+		q.FirstSeq += 1
 
-		freed_size := len(val.([]byte))
-		q.bytesInQueue -= freed_size
+		freeSize := len(val.([]byte))
+		q.bytesInQueue -= freeSize
 	} else if q.queue.Size() == 1 {
 		q.FirstSeq = seq
 	}
@@ -136,9 +144,10 @@ func (q *listQueue) printInfo() {
 		}
 		fmt.Printf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
 			q.ssrc, q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
-		//if !q.Check() {
-		//	panic("rtp queue params err")
-		//}
+		if !q.Check() {
+			fmt.Printf("error in Rtp Cache, first:%v,last:%v, but Size:%v\n", q.FirstSeq, q.LastSeq, q.queue.Size())
+			panic("rtp queue params err")
+		}
 		q.m.Unlock()
 	}
 }

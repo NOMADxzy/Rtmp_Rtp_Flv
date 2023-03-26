@@ -28,6 +28,7 @@ const (
 	HEADER_LEN          = 13
 	MAX_RTP_PAYLOAD_LEN = 1180
 	RTP_INITIAL_SEQ     = uint16(65000)
+	RTP_CACHE_CHAN_SIZE = 100
 )
 
 // rtp相关
