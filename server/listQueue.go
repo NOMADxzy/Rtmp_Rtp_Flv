@@ -139,6 +139,7 @@ func (q *listQueue) printInfo() {
 	for {
 		_ = <-time.After(5 * time.Second)
 		q.m.Lock()
+
 		if q.Closed {
 			return
 		}
@@ -150,4 +151,13 @@ func (q *listQueue) printInfo() {
 		}
 		q.m.Unlock()
 	}
+}
+
+func (q *listQueue) speedTest() {
+	start := time.Now()
+	for i := 0; i < q.queue.Size(); i++ {
+		q.GetPkt(q.FirstSeq + uint16(i))
+	}
+	ts := time.Since(start).Nanoseconds()
+	fmt.Printf("执行%d次查找，花费%dms", q.queue.Size(), ts)
 }

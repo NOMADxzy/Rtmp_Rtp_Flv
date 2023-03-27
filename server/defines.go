@@ -46,6 +46,8 @@ type Config struct {
 	RTP_PORT         int      `yaml:"rtp_port"`
 	RTMP_ADDR        string   `yaml:"rtmp_addr"`
 	API_ADDR         string   `yaml:"api_addr"`
+	CERT_FILE        string   `yaml:"cert_file"`
+	KEY_FILE         string   `yaml:"key_file"`
 }
 
 var conf = &Config{ //default config
@@ -56,6 +58,8 @@ var conf = &Config{ //default config
 	RTP_PORT:         5220,
 	RTMP_ADDR:        ":1935",
 	API_ADDR:         ":8090",
+	CERT_FILE:        "",
+	KEY_FILE:         "",
 }
 
 func (conf *Config) readFromXml(src string) {

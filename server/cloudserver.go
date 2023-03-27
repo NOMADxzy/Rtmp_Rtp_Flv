@@ -239,10 +239,6 @@ func startRtmp(stream *rtmp.RtmpStream) {
 func startAPI(stream *rtmp.RtmpStream) {
 	apiAddr := conf.API_ADDR
 	if apiAddr != "" {
-		opListen, err := net.Listen("tcp", apiAddr)
-		if err != nil {
-			log.Fatal(err)
-		}
 		opServer := api.NewServer(stream, conf.RTMP_ADDR)
 		go func() {
 			defer func() {
@@ -251,7 +247,12 @@ func startAPI(stream *rtmp.RtmpStream) {
 				}
 			}()
 			log.Info("HTTP-API listen On ", apiAddr)
-			err = opServer.Serve(opListen)
+			//判断文件存在
+			if !PathExists(conf.KEY_FILE) || !PathExists(conf.CERT_FILE) {
+				conf.KEY_FILE = ""
+				conf.CERT_FILE = ""
+			}
+			err := opServer.Serve(apiAddr, conf.CERT_FILE, conf.KEY_FILE)
 			checkError(err)
 		}()
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/quic-go/quic-go"
 	"math/big"
 	"net"
+	"os"
 	"time"
 )
 
@@ -49,6 +50,17 @@ func checkError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func PathExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
 }
 
 func generateTLSConfig() (*tls.Config, error) {
