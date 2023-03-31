@@ -77,6 +77,7 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	SSRC := addChannel(stream.Channel()).SSRC
 	stream.SetSsrc(SSRC)
 	fmt.Println("NewStreamCreated SSRC = ", SSRC)
+	streamNumberCount.Inc()
 }
 
 // OnStreamClosed 自定义流停止方法
@@ -87,6 +88,7 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 		streamEntity.RtpQueue.Closed = true
 	}
 	ChannelMap.Remove(stream.Ssrc())
+	streamNumberCount.Desc()
 	fmt.Println("StreamClosed SSRC = ", stream.Ssrc())
 }
 
@@ -104,10 +106,6 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	metadata := message.Data
 	var flvTag []byte
 	streamEntity.timestamp += uint32(1)
-
-	if message.TimeStamp == 0 {
-		s.StartTime = time.Now().UnixMilli()
-	}
 
 	// 创建音频或视频 flvTag = flvTagHeader (11 bytes) + flvTagBody
 	if message.IsVideo {
@@ -131,14 +129,11 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 		rp.SetMarker(true)
 		rp.SetPayload(flvTag)
-		rp.SetSequence(streamEntity.NextSeq)
+		rp.SetSequence(streamEntity.NextSeq) // 使用GoRtp自带的自增在多条流情况下出问题，所以手动设置
 		streamEntity.NextSeq += 1
 		sendPacket(rp)
 
-		rtp_buf := make([]byte, rp.InUse()) // 深拷贝：需要提前复制
-		copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-		streamEntity.RtpQueue.packetQueue <- rtp_buf
-		rp.FreePacket() // 释放内存
+		streamEntity.RtpQueue.packetQueue <- rp
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
@@ -154,16 +149,17 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 			streamEntity.NextSeq += 1
 			sendPacket(rp)
 
-			rtp_buf := make([]byte, rp.InUse())
-			copy(rtp_buf, rp.Buffer()[:rp.InUse()])
-			streamEntity.RtpQueue.packetQueue <- rtp_buf
-			rp.FreePacket()
+			streamEntity.RtpQueue.packetQueue <- rp
 		}
 	}
 
 	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
-	if streamEntity.flvFile != nil {
+	if message.TimeStamp > 0 && s.StartTime == 0 { // 记录时间，最后一个timestamp为0的flvTag才是真正的startTime
+		s.StartTime = time.Now().UnixMilli() - int64(message.TimeStamp)
+	}
+
+	if streamEntity.flvFile != nil { // 录制
 		err := streamEntity.flvFile.WriteTagDirect(flvTag)
 		checkError(err)
 	}
@@ -335,10 +331,12 @@ func main() {
 	ChannelMap = hashmap.New()
 
 	conf.readFromXml("./config.yaml")
-	initUdpConns()
-	//go showRecvDataSize()
-	go startQuic()
 
+	initUdpConns()
+	initMetrics()
+	//go showRecvDataSize()
+
+	go startQuic()
 	startAPI(stream)
 	startRtmp(stream)
 }

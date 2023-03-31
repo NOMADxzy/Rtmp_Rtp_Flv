@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/emirpasic/gods/lists/arraylist"
+	"github.com/prometheus/client_golang/prometheus"
+	"net/rtp"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -20,11 +23,11 @@ type listQueue struct {
 	Closed          bool
 	ssrc            uint32
 	previousLostSeq uint16
-	packetQueue     chan []byte
+	packetQueue     chan *rtp.DataPacket
 }
 
 func newlistQueue(size int, ssrc uint32) *listQueue {
-	return &listQueue{queue: arraylist.New(), maxSize: size, ssrc: ssrc, packetQueue: make(chan []byte, RTP_CACHE_CHAN_SIZE)}
+	return &listQueue{queue: arraylist.New(), maxSize: size, ssrc: ssrc, packetQueue: make(chan *rtp.DataPacket, RTP_CACHE_CHAN_SIZE)}
 }
 
 func (q *listQueue) SizeOfNextRTP() int {
@@ -51,16 +54,20 @@ func (q *listQueue) Clear() {
 	q.LastSeq = uint16(0)
 	q.totalSend = 0
 	q.totalLost = 0
+	close(q.packetQueue)
 }
 
 func (q *listQueue) Run() {
 	for {
-		pkt, ok := <-q.packetQueue
+		rp, ok := <-q.packetQueue
 		if ok {
-			tmp := make([]byte, 2)
-			tmp = pkt[2:4]
-			seq := uint16(tmp[0])<<8 + uint16(tmp[1])
-			q.Enqueue(pkt, seq)
+			rtpBuf := make([]byte, rp.InUse()) // 深拷贝：需要提前复制
+			copy(rtpBuf, rp.Buffer()[:rp.InUse()])
+			q.Enqueue(rtpBuf, rp.Sequence())
+			rp.FreePacket() // 释放内存
+		} else {
+			fmt.Printf("[ssrc=%v]channel closed\n", q.ssrc)
+			break
 		}
 	}
 }
@@ -71,6 +78,8 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 
 	q.totalSend += 1
 	q.bytesInQueue += len(pkt)
+	streamCacheUsage.With(prometheus.Labels{"stream": strconv.Itoa(int(q.ssrc))}).Add(float64(len(pkt) / 1024))
+
 	q.queue.Add(pkt)
 	q.LastSeq = seq
 
@@ -81,6 +90,7 @@ func (q *listQueue) Enqueue(pkt []byte, seq uint16) {
 
 		freeSize := len(val.([]byte))
 		q.bytesInQueue -= freeSize
+		streamCacheUsage.With(prometheus.Labels{"stream": strconv.Itoa(int(q.ssrc))}).Sub(float64(len(pkt) / 1024))
 	} else if q.queue.Size() == 1 {
 		q.FirstSeq = seq
 	}

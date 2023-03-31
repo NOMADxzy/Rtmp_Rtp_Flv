@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/emirpasic/gods/maps/hashmap"
+	"net/rtp"
 	"sync"
 	"time"
 )
@@ -26,11 +27,11 @@ type mapQueue struct {
 	Closed          bool
 	ssrc            uint32
 	previousLostSeq uint16
-	packetQueue     chan []byte
+	packetQueue     chan *rtp.DataPacket
 }
 
 func newMapQueue(size int, ssrc uint32) *mapQueue {
-	return &mapQueue{maxSize: size, RtpMap: hashmap.New(), ssrc: ssrc, packetQueue: make(chan []byte, MAX_RTP_PAYLOAD_LEN)}
+	return &mapQueue{maxSize: size, RtpMap: hashmap.New(), ssrc: ssrc, packetQueue: make(chan *rtp.DataPacket, MAX_RTP_PAYLOAD_LEN)}
 }
 
 func (q *mapQueue) SizeOfNextRTP() int {
@@ -58,17 +59,20 @@ func (q *mapQueue) Clear() {
 	q.totalLost = 0
 	q.bytesInQueue = 0
 	q.Size = 0
-	//q = nil
+	close(q.packetQueue)
 }
 
 func (q *mapQueue) Run() {
 	for {
-		pkt, ok := <-q.packetQueue
+		rp, ok := <-q.packetQueue
 		if ok {
-			tmp := make([]byte, 2)
-			tmp = pkt[2:4]
-			seq := uint16(tmp[0])<<8 + uint16(tmp[1])
-			q.Enqueue(pkt, seq)
+			rtpBuf := make([]byte, rp.InUse()) // 深拷贝：需要提前复制
+			copy(rtpBuf, rp.Buffer()[:rp.InUse()])
+			q.Enqueue(rtpBuf, rp.Sequence())
+			rp.FreePacket() // 释放内存
+		} else {
+			fmt.Printf("[ssrc=%v]channel closed\n", q.ssrc)
+			break
 		}
 	}
 }
