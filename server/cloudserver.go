@@ -9,6 +9,7 @@ import (
 	"github.com/NOMADxzy/livego/protocol/rtmp"
 	"github.com/emirpasic/gods/lists/arraylist"
 	"github.com/quic-go/quic-go"
+	"io/ioutil"
 	"math"
 	"net"
 	"net/rtp"
@@ -106,6 +107,38 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	metadata := message.Data
 	var flvTag []byte
 	streamEntity.timestamp += uint32(1)
+	//TODO
+	if streamEntity.timestamp == 0 {
+		//res, _ := ioutil.ReadFile("videoSeq.txt")
+		//fmt.Println("instead seq ", len(res))
+		//flvTag = make([]byte, 11+len(res))
+		//_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
+		//streamEntity.flvFile.WriteTagDirect(flvTag)
+
+		//res, _ := ioutil.ReadFile("keyframe.txt")
+		//fmt.Println("instead keyframe ", len(res))
+		//flvTag = make([]byte, 11+len(res))
+		//_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
+		//streamEntity.flvFile.WriteTagDirect(flvTag)
+	}
+	//TODO
+	if message.Data[0] == byte(23) { //视频关键帧
+		if message.Data[4] == byte(0) { //Seq
+			//return
+		} else { //IDR
+			fmt.Println(len(message.Data))
+
+			//err := ioutil.WriteFile("hr/keyframe2.txt", message.Data, 0644)
+			//checkError(err)
+
+			res, _ := ioutil.ReadFile("hr/keyframe1.txt")
+			fmt.Println("instead keyframe ", len(res))
+			flvTag = make([]byte, 11+len(res))
+			_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
+			streamEntity.flvFile.WriteTagDirect(flvTag)
+			return
+		}
+	}
 
 	// 创建音频或视频 flvTag = flvTagHeader (11 bytes) + flvTagBody
 	if message.IsVideo {
@@ -122,6 +155,11 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		return
 	}
 
+	if streamEntity.flvFile != nil { // 录制
+		err := streamEntity.flvFile.WriteTagDirect(flvTag)
+		checkError(err)
+		return
+	}
 	// 发送flv_tag，超长则分片发送
 	flv_tag_len := len(flvTag)
 	var rp *rtp.DataPacket
@@ -157,11 +195,6 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	//fmt.Println(flv_tag)
 	if message.TimeStamp > 0 && s.StartTime == 0 { // 记录时间，最后一个timestamp为0的flvTag才是真正的startTime
 		s.StartTime = time.Now().UnixMilli() - int64(message.TimeStamp)
-	}
-
-	if streamEntity.flvFile != nil { // 录制
-		err := streamEntity.flvFile.WriteTagDirect(flvTag)
-		checkError(err)
 	}
 }
 

@@ -1,4 +1,5 @@
 rtp_cache_size: 5000
 quic_addr: :4242
 client_addr_list:
-- 127.0.0.1:5222
+- 239.0.0.1:5222
+enable_record: true
