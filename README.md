@@ -28,15 +28,15 @@
 
 ## 使用
 
-### 1. 启动云端节点
-监听rtmp`1935`端口`./cloudserver`
+### 1. 启动[边缘节点](https://github.com/NOMADxzy/Rtp_Http_Flv)，监听本地端口，准备接收云端节点发过来的rtp流，并转为http-flv服务
+`./edgeserver [-udp_addr :5222] [-pack_loss 0.002]`
 
-### 2. 启动[边缘节点](https://github.com/NOMADxzy/Rtp_Http_Flv)
-接收云端节点发过来的rtp流，并提供httpflv服务：`./edgeserver -udp_addr :5222`
+### 2. 启动云端节点
+监听rtmp`1935`端口`./cloudserver`
 
 ### 3. 使用`ffmpeg`等工具推流到云端节点
 
-参考命令：`ffmpeg -re -i caton.mp4 -vcodec libx264 -acodec aac -f flv  rtmp://127.0.0.1:1935/live/movie`
+参考命令：`ffmpeg -re -stream_loop -1 -i skiing.mp4 -vcodec libx264 -acodec aac -f flv rtmp://127.0.0.1:1935/live/movie`
 
 ### 4. 启动[flv.js播放器](http://bilibili.github.io/flv.js/demo/)
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"github.com/NOMADxzy/livego/av"
 	"github.com/NOMADxzy/livego/configure"
@@ -14,6 +16,7 @@ import (
 	"net/rtp"
 	"path"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/emirpasic/gods/maps/hashmap"
@@ -187,6 +190,27 @@ func sendPacket(rp *rtp.DataPacket) {
 	}
 }
 
+// 发送quic服务、http服务等端口初始化信息到边缘节点
+func sendInitialMessage() {
+	for _, udpConn := range UdpConns.Values() {
+		var err error
+		msg := new(bytes.Buffer)
+
+		msg.WriteString("0001") // 标志位
+
+		QuicPort, err := strconv.ParseInt(conf.QUIC_ADDR[1:], 10, 16)
+		binary.Write(msg, binary.BigEndian, uint16(QuicPort))
+		checkError(err)
+
+		ApiPort, err := strconv.ParseInt(conf.API_ADDR[1:], 10, 16)
+		binary.Write(msg, binary.BigEndian, uint16(ApiPort))
+		checkError(err)
+
+		_, err = udpConn.(*net.UDPConn).Write(msg.Bytes())
+		checkError(err)
+	}
+}
+
 func startRtmp(stream *rtmp.RtmpStream) {
 	RtmpAddr := conf.RTMP_ADDR
 	isRtmps := configure.Config.GetBool("enable_rtmps")
@@ -307,8 +331,7 @@ func main() {
 
 	log.Infof(`
     (╯°口°)╯( ┴—┴ Rtmp Http FLv （┬_┬）
-        version: %s
-	`, VERSION)
+        version: %s`, VERSION)
 
 	tpLocal, _ := rtp.NewTransportUDP(local, conf.RTP_PORT, localZone)
 	rsLocal = rtp.NewSession(tpLocal, tpLocal) //用来创建rtp包
@@ -333,7 +356,8 @@ func main() {
 	conf.readFromXml("./config.yaml")
 
 	initUdpConns()
-	initMetrics()
+	sendInitialMessage() //发送端口初始化信息到边缘，可去除
+	initMetrics()        // grafana监控，可去除
 	//go showRecvDataSize()
 
 	go startQuic()
