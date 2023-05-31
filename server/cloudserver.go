@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/binary"
-	"fmt"
 	"github.com/NOMADxzy/livego/av"
 	"github.com/NOMADxzy/livego/configure"
 	"github.com/NOMADxzy/livego/protocol/api"
@@ -14,13 +13,12 @@ import (
 	"math"
 	"net"
 	"net/rtp"
-	"path"
-	"runtime"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/emirpasic/gods/maps/hashmap"
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 )
 
 var videoDataSize int64
@@ -47,12 +45,12 @@ func addChannel(channel string) *StreamEntity {
 	strLocalIdx, _ := rsLocal.NewSsrcStreamOut(&rtp.Address{
 		IPAddr: local.IP, DataPort: conf.RTP_PORT, CtrlPort: conf.RTP_PORT + 1, Zone: localZone}, SSRC, RTP_INITIAL_SEQ)
 	ssrcStream := rsLocal.SsrcStreamOutForIndex(strLocalIdx)
-	ssrcStream.SetPayloadType(77)
+	ssrcStream.SetPayloadType(100)
 	//创建录制文件
 	var flvFile *File
 	if conf.ENABLE_RECORD {
 		flvFile = createFlvFile(channel)
-		fmt.Println("Create record file path = ", "/", channel+".flv")
+		log.Infof("Create record file path = /%s.flv\n", channel)
 	}
 
 	//创建rtp缓存队列
@@ -79,7 +77,7 @@ type MyMessageHandler struct{}
 func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	SSRC := addChannel(stream.Channel()).SSRC
 	stream.SetSsrc(SSRC)
-	fmt.Println("NewStreamCreated SSRC = ", SSRC)
+	log.Infof("NewStreamCreated SSRC = %v\n", SSRC)
 	streamNumberCount.Inc()
 }
 
@@ -92,7 +90,7 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	}
 	ChannelMap.Remove(stream.Ssrc())
 	streamNumberCount.Desc()
-	fmt.Println("StreamClosed SSRC = ", stream.Ssrc())
+	log.Infof("StreamClosed SSRC = %v\n", stream.Ssrc())
 }
 
 // OnReceived 自定义消息处理方法
@@ -132,11 +130,12 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 		rp.SetMarker(true)
 		rp.SetPayload(flvTag)
+		rp.SetPayloadType(FLV_PAYLOAD_TYPE)
 		rp.SetSequence(streamEntity.NextSeq) // 使用GoRtp自带的自增在多条流情况下出问题，所以手动设置
 		streamEntity.NextSeq += 1
 		sendPacket(rp)
 
-		streamEntity.RtpQueue.packetQueue <- rp
+		streamEntity.RtpQueue.packetQueue <- rp //入缓存
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
@@ -148,11 +147,12 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 			} else {
 				rp.SetPayload(flvTag[i*MAX_RTP_PAYLOAD_LEN:])
 			}
+			rp.SetPayloadType(FLV_PAYLOAD_TYPE)
 			rp.SetSequence(streamEntity.NextSeq)
 			streamEntity.NextSeq += 1
 			sendPacket(rp)
 
-			streamEntity.RtpQueue.packetQueue <- rp
+			streamEntity.RtpQueue.packetQueue <- rp //入缓存
 		}
 	}
 
@@ -184,6 +184,9 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 
 // 枚举所有的 UdpConns 列表，发送当前 rp.Buffer()[:rp.InUse()] 数据
 func sendPacket(rp *rtp.DataPacket) {
+	if conf.DEBUG { // 单独调试模式
+		return
+	}
 	for _, udpConn := range UdpConns.Values() {
 		_, err := udpConn.(*net.UDPConn).Write(rp.Buffer()[:rp.InUse()])
 		checkError(err)
@@ -267,25 +270,38 @@ func startAPI(stream *rtmp.RtmpStream) {
 				}
 			}()
 			log.Info("HTTP-API listen On ", apiAddr)
-			//判断文件存在
-			if !PathExists(conf.KEY_FILE) || !PathExists(conf.CERT_FILE) {
-				conf.KEY_FILE = ""
-				conf.CERT_FILE = ""
-			}
-			err := opServer.Serve(apiAddr, conf.CERT_FILE, conf.KEY_FILE)
+			err := opServer.Serve(apiAddr, "", "") //不使用https
 			checkError(err)
 		}()
 	}
 }
 
-func init() {
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			filename := path.Base(f.File)
-			return fmt.Sprintf("%s()", f.Function), fmt.Sprintf(" %s:%d", filename, f.Line)
-		},
-	})
+func initLog() {
+
+	//设置log
+	log.Formatter = new(logrus.TextFormatter) //初始化log
+	switch conf.LOG_LEVEL {
+	case "debug":
+		log.Level = logrus.DebugLevel
+		break
+	case "info":
+		log.Level = logrus.InfoLevel
+		break
+	case "error":
+		log.Level = logrus.ErrorLevel
+		break
+	default:
+		log.Level = logrus.TraceLevel
+	}
+	log.Out = os.Stdout
+	if conf.ENABLE_LOG_FILE {
+		file, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err == nil {
+			log.Out = file
+		} else {
+			log.Info("Failed to log to file, using default stderr")
+		}
+	}
 }
 
 // 打印历史信息
@@ -301,7 +317,7 @@ func startQuic() {
 	tlsConf, err := generateTLSConfig()
 	checkError(err)
 	ln, err := quic.ListenAddr("0.0.0.0"+conf.QUIC_ADDR, tlsConf, nil)
-	fmt.Println("quic server listening on ", "0.0.0.0"+conf.QUIC_ADDR)
+	log.Info("quic server listening on ", "0.0.0.0"+conf.QUIC_ADDR)
 	checkError(err)
 
 	for {
@@ -354,6 +370,7 @@ func main() {
 	ChannelMap = hashmap.New()
 
 	conf.readFromXml("./config.yaml")
+	initLog()
 
 	initUdpConns()
 	sendInitialMessage() //发送端口初始化信息到边缘，可去除
@@ -361,6 +378,6 @@ func main() {
 	//go showRecvDataSize()
 
 	go startQuic()
-	startAPI(stream)
-	startRtmp(stream)
+	startAPI(stream)  //提供流key与ssrc对应关系、流startTime等信息的api
+	startRtmp(stream) //启动Rtmp服务器
 }

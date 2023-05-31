@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"github.com/quic-go/quic-go"
+	"github.com/sirupsen/logrus"
 )
 
 type Conn struct {
@@ -17,9 +17,7 @@ type Conn struct {
 // 自定义的Conn，方便操作
 func newConn(sess quic.Connection, is_server bool) (*Conn, error) {
 	quicStream, err := sess.OpenStream()
-	if is_server {
-		fmt.Print("This is quic server launched by cloudServer.\n")
-	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +91,7 @@ func (c *Conn) Close() {
 	err = c.dataStream.Close()
 	checkError(err)
 	c = nil
-	fmt.Println("timeout conn closed")
+	log.Info("[quic] timeout, conn closed")
 }
 
 func (c *Conn) Serve() {
@@ -112,12 +110,15 @@ func (c *Conn) Serve() {
 
 		_, err = c.ReadSeq(&seq)
 		checkError(err)
-		fmt.Printf("收到重传请求: seq: %v, ssrc: %v \n", seq, ssrc)
+		log.WithFields(logrus.Fields{
+			"seq":  seq,
+			"ssrc": ssrc,
+		}).Debugf("retransmission req recieved")
 
 		//发送rtp数据包给客户
 		val, f := ChannelMap.Get(ssrc)
 		if !f {
-			fmt.Printf("error,can not find streamInfo, ssrc = %d\n", ssrc)
+			log.Errorf("get streamInfo faild, ssrc = %d", ssrc)
 			continue
 		}
 		pkt := val.(*StreamEntity).RtpQueue.GetPkt(seq)
@@ -126,7 +127,7 @@ func (c *Conn) Serve() {
 			_, err = c.SendRtp(pkt)
 			checkError(err)
 		} else {
-			fmt.Println("quic无法重传，没有该包，seq：", seq)
+			log.Errorf("[quic] retransmission failed，no such pkt，seq：%v", seq)
 			_, err := c.SendRtp(nil)
 			checkError(err)
 		}

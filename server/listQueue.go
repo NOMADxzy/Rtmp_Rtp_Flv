@@ -66,7 +66,7 @@ func (q *listQueue) Run() {
 			q.Enqueue(rtpBuf, rp.Sequence())
 			rp.FreePacket() // 释放内存
 		} else {
-			fmt.Printf("[ssrc=%v]channel closed\n", q.ssrc)
+			log.Infof("[ssrc=%v]channel closed\n", q.ssrc)
 			break
 		}
 	}
@@ -103,7 +103,7 @@ func (q *listQueue) GetPkt(targetSeq uint16) []byte {
 	q.totalLost += 1
 	if targetSeq+1 == q.previousLostSeq { //连续的三个seq丢失
 		BusyTime += 1
-		fmt.Printf("[warning] Continuous packet loss, -------------------- BusyTime  : %v \n", BusyTime)
+		log.Warningf("[warning] Continuous packet loss, -------------------- BusyTime  : %v \n", BusyTime)
 	}
 	q.previousLostSeq = targetSeq
 
@@ -153,10 +153,10 @@ func (q *listQueue) printInfo() {
 		if q.Closed {
 			return
 		}
-		fmt.Printf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f \n",
+		log.Debugf("[ssrc=%d]current rtpQueue length: %d, FirstSeq: %d, LastSeq: %d, Packet_Loss_Rate:%.4f",
 			q.ssrc, q.queue.Size(), q.FirstSeq, q.LastSeq, float64(q.totalLost)/float64(q.totalSend))
 		if !q.Check() {
-			fmt.Printf("error in Rtp Cache, first:%v,last:%v, but Size:%v\n", q.FirstSeq, q.LastSeq, q.queue.Size())
+			log.Errorf("error in Rtp Cache, first:%v,last:%v, but Size:%v\n", q.FirstSeq, q.LastSeq, q.queue.Size())
 			panic("rtp queue params err")
 		}
 		q.m.Unlock()

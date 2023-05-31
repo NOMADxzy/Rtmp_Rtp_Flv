@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"github.com/quic-go/quic-go"
 	"math/big"
 	"net"
@@ -20,14 +19,14 @@ func WaitForQuicConn(ln quic.Listener) *Conn {
 	conn, _ := newConn(protoConn, true)
 	checkError(err)
 
-	fmt.Println("Quic Established connection, remote addr: ", protoConn.RemoteAddr())
+	log.Infof("Quic Established connection, remote addr: %v\n", protoConn.RemoteAddr())
 	return conn
 }
 
 func createFlvFile(channel string) *File {
 	flvFile, err := CreateFile("./" + channel + ".flv")
 	if err != nil {
-		fmt.Println("Create FLV dump file error:", err)
+		log.Error("Create FLV dump file error:", err)
 		panic(err)
 	}
 	return flvFile
@@ -76,7 +75,7 @@ func generateTLSConfig() (*tls.Config, error) {
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
-		fmt.Println(err)
+		log.Error(err)
 		return nil, err
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{

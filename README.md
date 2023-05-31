@@ -20,16 +20,22 @@
 [Releases](https://github.com/NOMADxzy/Rtp_Http_Flv/releases)
 
 ### 从源码编译
-由于依赖了`net/rtp`，所以需编译[GoRtp](https://github.com/wernerd/GoRTP)库
-1. 下载源码 `git clone https://github.com/NOMADxzy/Rtmp_Rtp_Flv.git`
-2. `cd server` && `go build ./`
+
+1. 由于依赖了`net/rtp`，所以需编译[GoRtp](https://github.com/wernerd/GoRTP)库，
+   `git clone https://github.com/wernerd/GoRTP` <br/>
+   复制 `rtp`到 `go根目录/src/net`下 <br/>
+   `go build net/rtp` <br/>
+   `go install net/rtp`<br/>
+   并修改最大出流数量（默认值仅为5），找到`src/net/rtp/sessionlocal.go `，修改 `maxNumberOutStreams = 100`
+2. 下载源码`git clone https://github.com/NOMADxzy/Rtmp_Rtp_Flv.git`
+3. `cd server` && `go build ./`
 
 
 
 ## 使用
 
 ### 1. 启动[边缘节点](https://github.com/NOMADxzy/Rtp_Http_Flv)，监听本地端口，准备接收云端节点发过来的rtp流，并转为http-flv服务
-`./edgeserver [-udp_addr :5222] [-pack_loss 0.002]`
+`./edgeserver [-udp_addr :5222]`
 
 ### 2. 启动云端节点
 监听rtmp`1935`端口`./cloudserver`
@@ -46,15 +52,18 @@
 `config.yaml`
 
 ```bash
-rtp_cache_size: 5000 #云端节点缓存的rtp数量
-quic_addr: :4242     #quic服务的监听地址
-client_addr_list:    #边缘节点的udp及端口号，向这些地址发送数据
+rtp_cache_size:   5000      #云端节点缓存的rtp数量
+quic_addr:        :4242     #quic服务的监听地址
+client_addr_list:           #边缘节点的udp及端口号，向这些地址发送数据
 - 127.0.0.1:5222
 - 127.0.0.1:5224
-enable_record: false
-rtp_port: 5220
-rtmp_addr: :1935
-api_addr: :8090
+enable_record:    false     #录制直播
+rtp_port:         5220      #rtp发送端口
+rtmp_addr:        :1935     #rtmp监听端口
+api_addr:         :8090     #http监听端口
+debug:            false     #为true时不向边缘发rtp数据，用于调试
+log_level:        debug     #日志等级
+enable_log_file:  true      #启用日志文件
 ```
 
 

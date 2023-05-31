@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net"
@@ -29,6 +30,7 @@ const (
 	MAX_RTP_PAYLOAD_LEN = 1180
 	RTP_INITIAL_SEQ     = uint16(65000)
 	RTP_CACHE_CHAN_SIZE = 100
+	FLV_PAYLOAD_TYPE    = byte(100)
 )
 
 // rtp相关
@@ -36,6 +38,8 @@ var local, _ = net.ResolveIPAddr("ip", "127.0.0.1")
 var rsLocal *rtp.Session
 var localZone = ""
 var BusyTime = 0 //记录边缘拥塞次数
+
+var log = logrus.New()
 
 // Config app参数
 type Config struct {
@@ -46,8 +50,9 @@ type Config struct {
 	RTP_PORT         int      `yaml:"rtp_port"`
 	RTMP_ADDR        string   `yaml:"rtmp_addr"`
 	API_ADDR         string   `yaml:"api_addr"`
-	CERT_FILE        string   `yaml:"cert_file"`
-	KEY_FILE         string   `yaml:"key_file"`
+	DEBUG            bool     `yaml:"debug"`
+	LOG_LEVEL        string   `yaml:"log_level"`
+	ENABLE_LOG_FILE  bool     `yaml:"enable_log_file"`
 }
 
 var conf = &Config{ //default config
@@ -58,8 +63,9 @@ var conf = &Config{ //default config
 	RTP_PORT:         5220,
 	RTMP_ADDR:        ":1935",
 	API_ADDR:         ":8090",
-	CERT_FILE:        "",
-	KEY_FILE:         "",
+	DEBUG:            false,
+	LOG_LEVEL:        "debug",
+	ENABLE_LOG_FILE:  false,
 }
 
 func (conf *Config) readFromXml(src string) {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
@@ -37,5 +36,5 @@ func initMetrics() {
 
 	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	go http.ListenAndServe(":8080", nil)
-	fmt.Printf("metrics api listening on %v\n", ":8080")
+	log.Infof("metrics api listening on %v\n", ":8080")
 }

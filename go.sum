@@ -173,6 +173,12 @@ github.com/urfave/negroni v1.0.0/go.mod h1:Meg73S6kFm/4PpbYdq35yYWoCZ9mS/YSx+lKn
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
+github.com/zhangpeihao/goamf v0.0.0-20140409082417-3ff2c19514a8 h1:r1JUI0wuHlgRb8jNd3zPBBkjUdrjpVKr8SdJWc8ntg8=
+github.com/zhangpeihao/goamf v0.0.0-20140409082417-3ff2c19514a8/go.mod h1:RZd/IqzNpFANwOB9rVmsnAYpo/6KesK4PqrN1a5cRgg=
+github.com/zhangpeihao/gortmp v0.0.0-20161114025007-d5f2189e629f h1:bu2dDuNFT3zZGramPvJcCOcf7A+A89MmZQ8HE05jJus=
+github.com/zhangpeihao/gortmp v0.0.0-20161114025007-d5f2189e629f/go.mod h1:CEok2oL+WcRRueu3MjgeE2rA7PZMjOAtBHtiCFL7oD4=
+github.com/zhangpeihao/log v0.0.0-20170117094621-62e921e41859 h1:vrlOUrBlpVmIvWsd8FhUwXWzdYqYcgFzbf8j1qPkGM8=
+github.com/zhangpeihao/log v0.0.0-20170117094621-62e921e41859/go.mod h1:OAvmouyIV28taMw4SC4+hSnouObQqQkTQNOhU3Zowl0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v1.1.0/go.mod h1:wR5kodmAFQ0UK8QlbwjlSNy0Z68gJhDJUG5sjR94q/0=
