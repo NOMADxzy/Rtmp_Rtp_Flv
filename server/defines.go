@@ -58,7 +58,7 @@ type Config struct {
 var conf = &Config{ //default config
 	RTP_CACHE_SIZE:   5000,
 	QUIC_ADDR:        ":4242",
-	CLIENT_ADDR_LIST: []string{"127.0.0.1:5222"},
+	CLIENT_ADDR_LIST: []string{"239.0.0.1:5222"},
 	ENABLE_RECORD:    false,
 	RTP_PORT:         5220,
 	RTMP_ADDR:        ":1935",
