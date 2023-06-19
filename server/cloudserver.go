@@ -107,6 +107,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	metadata := message.Data
 	var flvTag []byte
 	streamEntity.timestamp += uint32(1)
+
 	//TODO
 	if streamEntity.timestamp == 0 {
 		//res, _ := ioutil.ReadFile("videoSeq.txt")
@@ -121,21 +122,40 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 		//_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
 		//streamEntity.flvFile.WriteTagDirect(flvTag)
 	}
+	write_mode := false
+	//instead_seq := false
 	//TODO
 	if message.Data[0] == byte(23) { //视频关键帧
-		if message.Data[4] == byte(0) { //Seq
+		if message.Data[1] == byte(0) { //Seq
+			//if write_mode {
+			//	err := ioutil.WriteFile("hr/seq.txt", message.Data, 0644)
+			//	checkError(err)
+			//} else {
+			//	res, _ := ioutil.ReadFile("hr/seq.txt")
+			//	fmt.Println("instead seq ", len(res))
+			//	flvTag = make([]byte, 11+len(res))
+			//	_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
+			//	streamEntity.flvFile.WriteTagDirect(flvTag)
+			//	return
+			//}
 			//return
-		} else { //IDR
-			fmt.Println(len(message.Data))
+		} else if message.Data[1] == byte(1) { //IDR
+			fmt.Println("IDR", len(message.Data))
 
-			//err := ioutil.WriteFile("hr/keyframe2.txt", message.Data, 0644)
-			//checkError(err)
+			if write_mode {
+				err := ioutil.WriteFile("hr/keyframe1.txt", message.Data, 0644)
+				fmt.Println("save IDR", len(message.Data))
+				checkError(err)
+			} else {
+				res, _ := ioutil.ReadFile("hr/keyframe1.txt")
+				fmt.Println("instead keyframe ", len(res))
+				flvTag = make([]byte, 11+len(res))
+				_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
+				streamEntity.flvFile.WriteTagDirect(flvTag)
+				return
+			}
 
-			res, _ := ioutil.ReadFile("hr/keyframe1.txt")
-			fmt.Println("instead keyframe ", len(res))
-			flvTag = make([]byte, 11+len(res))
-			_, _ = CreateTag(flvTag, res, VIDEO_TAG, message.TimeStamp)
-			streamEntity.flvFile.WriteTagDirect(flvTag)
+		} else { //end
 			return
 		}
 	}
