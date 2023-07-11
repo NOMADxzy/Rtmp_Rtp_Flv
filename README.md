@@ -16,10 +16,19 @@
 
 ## 安装
 
-### 使用预编译的可执行文件
+### choice1 - 使用预编译的可执行文件
 [Releases](https://github.com/NOMADxzy/Rtp_Http_Flv/releases)
 
-### 从源码编译
+### choice2 - 使用 Dockerfile
+先将边缘ip写入config.yaml
+```text
+client_addr_list:
+- 10.112.90.187:5222
+```
+生成镜像 `docker build -t cloud -f ./Dockerfile ./`
+运行容器 `docker run --name cloud -dit -p 1935:1935 -p 8090:8090 -p 0.0.0.0:4242:4242/udp cloud`
+
+### choice3 - 从源码编译
 
 1. 由于依赖了`net/rtp`，所以需编译[GoRtp](https://github.com/wernerd/GoRTP)库，
    `git clone https://github.com/wernerd/GoRTP` <br/>
