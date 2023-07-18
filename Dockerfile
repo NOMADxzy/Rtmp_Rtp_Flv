@@ -9,10 +9,12 @@ MAINTAINER zuyunxu@bupt.edu.cn
 #镜像操作命令
 WORKDIR /home/app
 
-RUN apt update && apt install git
+RUN apt update && apt install -y git vim
 
-RUN git clone https://github.com/NOMADxzy/GoRtp.git && mv GoRtp/src/net/rtp /usr/local/go/src/net && go build net/rtp && \
-    go install net/rtp
+RUN git clone https://github.com/NOMADxzy/GoRtp.git \
+    && mv GoRtp/src/net/rtp /usr/local/go/src/net \
+    && go build net/rtp \
+    && go install net/rtp
 
 # pre-copy/cache go.mod for pre-downloading dependencies and only redownloading them in subsequent builds if they change
 COPY go.mod go.sum ./

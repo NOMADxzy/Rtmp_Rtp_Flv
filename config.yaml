@@ -1,0 +1,12 @@
+rtp_cache_size: 5000
+quic_addr: :4242
+client_addr_list:
+- 239.0.0.1:5222
+#- 10.128.196.225:5222
+enable_record: false
+rtp_port: 5220
+rtmp_addr: :1935
+api_addr: :8090
+debug: false
+log_level: debug
+enable_log_file: false

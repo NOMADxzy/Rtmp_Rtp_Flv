@@ -2,12 +2,17 @@
 
 ![system.png](https://s2.loli.net/2022/10/04/q2GfX9DdxPhsACH.png)
 
+
+![go](https://img.shields.io/badge/go-18.0+-blue.svg?style=plastic)
+<img alt="Tests Passing" src="https://github.com/anuraghazra/github-readme-stats/workflows/Test/badge.svg" />
+![platform](https://img.shields.io/badge/win/mac/linux-satisfied-655BE1.svg?style=plastic)
+![dockerfile](https://img.shields.io/badge/dockerfile-provided-655BE1.svg?style=plastic)
 ## 功能
 - 接收rtmp推流，将数据封装成`flv Tag`格式
 - 将`flv Tag`设为rtp的载荷，通过rtp协议以`组播/单播`方式发送到边缘节点，超过载荷长度则分片发送
 - 缓存一定量的rtp包再云端节点，为边缘节点提供quic重传服务
 
-### 涉及的传输协议
+### 相关知识
 - [RTMP](https://github.com/melpon/rfc/blob/master/rtmp.md)
 - [RTP](https://www.rfc-editor.org/rfc/rfc3550.html)
 - [QUIC](https://datatracker.ietf.org/doc/html/rfc9000)
@@ -16,10 +21,10 @@
 
 ## 安装
 
-### choice1 - 使用预编译的可执行文件
+### Choice1 - 使用预编译的可执行文件
 [Releases](https://github.com/NOMADxzy/Rtp_Http_Flv/releases)
 
-### choice2 - 使用 Dockerfile
+### Choice2 - 使用 Dockerfile
 先将边缘ip写入config.yaml
 ```text
 client_addr_list:
@@ -28,7 +33,7 @@ client_addr_list:
 生成镜像 `docker build -t cloud -f ./Dockerfile ./`
 运行容器 `docker run --name cloud -dit -p 1935:1935 -p 8090:8090 -p 0.0.0.0:4242:4242/udp cloud`
 
-### choice3 - 从源码编译
+### Choice3 - 从源码编译
 
 1. 由于依赖了`net/rtp`，所以需编译[GoRtp](https://github.com/wernerd/GoRTP)库，
    `git clone https://github.com/wernerd/GoRTP` <br/>
