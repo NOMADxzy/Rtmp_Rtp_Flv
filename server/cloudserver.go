@@ -29,6 +29,8 @@ var VERSION = "master"
 var SSRC = uint32(1020303)
 var ChannelMap *hashmap.Map // key:SSRC，val:streamEntity
 var UdpConns *arraylist.List
+var running bool
+var seqBytes []byte
 
 type StreamEntity struct {
 	strLocalIdx uint32
@@ -81,6 +83,11 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	stream.SetSsrc(ssrc)
 	log.Infof("NewStreamCreated SSRC = %v\n", SSRC)
 	streamNumberCount.Inc()
+
+	if !running {
+		RunSR("rtmp://127.0.0.1:1935/live/"+stream.Channel(), ssrc)
+		running = true
+	}
 }
 
 // OnStreamClosed 自定义流停止方法
@@ -95,62 +102,68 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	log.Infof("StreamClosed SSRC = %v\n", stream.Ssrc())
 }
 
-var seqBytes []byte
-
-func processKSR(reader io.ReadCloser, reader_fsr io.ReadCloser, outfile string, ssrc uint32) {
+func processKSR(readerFsr io.ReadCloser, filename string, ssrc uint32) {
 	var streamEntity *StreamEntity
 	if val, f := ChannelMap.Get(ssrc); f {
 		streamEntity = val.(*StreamEntity)
 	} else {
 		panic("err sr")
 	}
-	go func() {
 
+	total_P, total_I, part_P := 1, 0, 0
+
+	go func() {
 		var tmpBuf = make([]byte, 13) //去除头部字节
-		_, err := io.ReadFull(reader, tmpBuf)
+		_, err := io.ReadFull(readerFsr, tmpBuf)
 		checkError(err)
-		_, _ = io.ReadFull(reader_fsr, tmpBuf)
 
 		//flvFile_vsr, _ := CreateFile(outfile)
 
 		for id := 0; ; id += 1 {
-			header, data, _ := sr.ReadTag(reader)
-			header_fsr, data_fsr, _ := sr.ReadTag(reader_fsr)
+			headerFsr, dataFsr, _ := sr.ReadTag(readerFsr)
 
-			sr.ParseHeader(header, data)
-			sr.ParseHeader(header_fsr, data_fsr)
-			vh_fsr, _ := header_fsr.PktHeader.(sr.VideoPacketHeader)
+			sr.ParseHeader(headerFsr, dataFsr)
+			vhFsr, _ := headerFsr.PktHeader.(sr.VideoPacketHeader)
 
-			if header.TagType == byte(9) {
+			if headerFsr.TagType == byte(9) {
 
-				if vh, ok := header.PktHeader.(sr.VideoPacketHeader); ok {
+				if vh, ok := headerFsr.PktHeader.(sr.VideoPacketHeader); ok {
 					checkError(err)
 
 					if vh.IsSeq() {
-						seqBytes = header.TagBytes
+						seqBytes = headerFsr.TagBytes
 
 					} else if vh.IsKeyFrame() {
-						keyTagBytes := sr.ReadKeyFrame(header.TagBytes, seqBytes)
+						keyTagBytes := sr.ReadKeyFrame(headerFsr.TagBytes, seqBytes)
 						sendFlvTag(keyTagBytes, streamEntity)
 						//err = flvFile_vsr.WriteTagDirect(keyTagBytes)
 						//checkError(err)
 
+						total_I += 1
 						sr.Log.WithFields(logrus.Fields{
-							"new_size":    len(keyTagBytes),
-							"pre_size":    header_fsr.DataSize + 11,
-							"is_KeyFrame": vh_fsr.IsKeyFrame(),
+							"new_size":       len(keyTagBytes),
+							"pre_size":       headerFsr.DataSize + 11,
+							"is_KeyFrame":    vhFsr.IsKeyFrame(),
+							"numBeforeLastI": part_P,
+							"total I":        total_I,
+							"I Proportion":   float32(total_I) / float32(total_P),
 						}).Infof("instead keyFrame")
+						part_P = 0
 						continue
+					} else {
+						//是P帧
+						total_P += 1
+						part_P += 1
 					}
 				}
 			}
 
-			//err = flvFile_vsr.WriteTagDirect(header_fsr.TagBytes) //非IDR帧数据保持原有
-			sendFlvTag(header_fsr.TagBytes, streamEntity)
-			if vh_fsr.IsKeyFrame() {
+			//err = flvFile_vsr.WriteTagDirect(headerFsr.TagBytes) //非IDR帧数据保持原有
+			sendFlvTag(headerFsr.TagBytes, streamEntity)
+			if vhFsr.IsKeyFrame() {
 				sr.Log.WithFields(logrus.Fields{
-					"size":      header_fsr.DataSize + 11,
-					"timestamp": header_fsr.Timestamp,
+					"size":      headerFsr.DataSize + 11,
+					"timestamp": headerFsr.Timestamp,
 				}).Warnf("ignore key frame")
 			}
 			checkError(err)
@@ -159,8 +172,6 @@ func processKSR(reader io.ReadCloser, reader_fsr io.ReadCloser, outfile string, 
 	}()
 	return
 }
-
-var running bool
 
 // OnReceived 自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
@@ -171,12 +182,6 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	} else {
 		streamEntity = val.(*StreamEntity)
 	}
-
-	if !running {
-		RunSR("rtmp://127.0.0.1:1935/live/"+streamEntity.channel, streamEntity.SSRC)
-		running = true
-	}
-
 	// metaData 相当于 flvTagBody
 	metadata := message.Data
 	var flvTag []byte

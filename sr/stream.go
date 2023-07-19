@@ -25,8 +25,8 @@ type Config struct {
 var Conf *Config
 
 func GetVideoSize(fileName string) (int, int) {
-	return 160, 90
-	//return 320, 180
+	//return 160, 90
+	return 320, 180
 	Log.Infof("Getting video size for", fileName)
 	data, err := ffmpeg.Probe(fileName)
 	if err != nil {
@@ -101,7 +101,7 @@ func clipPreKeyframe(reader io.Reader) chan error {
 	go func() {
 		err := ffmpeg.Input("pipe:",
 			ffmpeg.KwArgs{"format": "flv"}).
-			Output("pipe:", ffmpeg.KwArgs{"format": "rawvideo", "pix_fmt": "rgb24"}).
+			Output("pipe:", ffmpeg.KwArgs{"format": "rawvideo", "s": fmt.Sprintf("%dx%d", Conf.Ow, Conf.Oh), "pix_fmt": "rgb24"}).
 			WithInput(reader).
 			WithOutput(buf).
 			Run()
@@ -122,6 +122,8 @@ func ReadKeyFrame(keyframeBytes []byte, seqBytes []byte) []byte {
 
 	done := clipPreKeyframe(bytes.NewReader(tmpBuf.Bytes()))
 	<-done
+	a := buf.Bytes()
+	fmt.Println(len(a))
 	body := PostImg(buf.Bytes())
 
 	encToH264(body) //会在keyChan中产生相应的超分tag

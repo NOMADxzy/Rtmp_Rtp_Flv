@@ -20,15 +20,13 @@ func RunSR(inFile string, ssrc uint32) {
 	//"http://127.0.0.1:5000/"}
 	log.Println(w, h)
 
-	pr1, pw1 := io.Pipe()
-	pr2, pw2 := io.Pipe()
+	pr, pw := io.Pipe()
 	sr.InitKeyProcess() //对超分后的图片进行h264编码的服务
 
-	_ = sr.TransToFlv(inFile, pw1) // 转码为flv
-	_ = sr.FSR(inFile, pw2)
+	_ = sr.FSR(inFile, pw)
 
 	_, fileName := filepath.Split(inFile)
 	rawName := strings.Split(fileName, ".")[0]
-	processKSR(pr1, pr2, "out/"+rawName+".flv", ssrc) // 提取关键帧
+	processKSR(pr, "out/"+rawName+".flv", ssrc) // 提取关键帧
 
 }
