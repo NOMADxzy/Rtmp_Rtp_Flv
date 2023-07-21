@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"rtmp_rtp_flv/sr"
-	"strings"
 )
 
 func RunSR(inFile string, ssrc uint32) {
@@ -25,8 +23,10 @@ func RunSR(inFile string, ssrc uint32) {
 
 	_ = sr.FSR(inFile, pw)
 
-	_, fileName := filepath.Split(inFile)
-	rawName := strings.Split(fileName, ".")[0]
-	processKSR(pr, "out/"+rawName+".flv", ssrc) // 提取关键帧
+	//_, fileName := filepath.Split(inFile)
+	//rawName := strings.Split(fileName, ".")[0]
+	rr := processKSR(pr) // 提取关键帧
+
+	readKSR(rr, ssrc)
 
 }

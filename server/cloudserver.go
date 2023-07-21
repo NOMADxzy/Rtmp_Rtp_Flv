@@ -102,15 +102,15 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	log.Infof("StreamClosed SSRC = %v\n", stream.Ssrc())
 }
 
-func processKSR(readerFsr io.ReadCloser, filename string, ssrc uint32) {
-	var streamEntity *StreamEntity
-	if val, f := ChannelMap.Get(ssrc); f {
-		streamEntity = val.(*StreamEntity)
-	} else {
-		panic("err sr")
-	}
+func processKSR(readerFsr io.ReadCloser) *io.PipeReader {
 
-	total_P, total_I, part_P := 1, 0, 0
+	total_P, total_I, part_P := 1, 0, 0 //监测
+
+	pr, pw := io.Pipe()
+	rr, rw := io.Pipe()
+	sr.TransToFlv(pr, rw)
+	_, err := pw.Write(sr.HEADER_BYTES)
+	checkError(err)
 
 	go func() {
 		var tmpBuf = make([]byte, 13) //去除头部字节
@@ -135,7 +135,11 @@ func processKSR(readerFsr io.ReadCloser, filename string, ssrc uint32) {
 
 					} else if vh.IsKeyFrame() {
 						keyTagBytes := sr.ReadKeyFrame(headerFsr.TagBytes, seqBytes)
-						sendFlvTag(keyTagBytes, streamEntity)
+						//sendFlvTag(keyTagBytes, streamEntity)
+						_, err := pw.Write(keyTagBytes)
+						checkError(err)
+						err = binary.Write(pw, binary.BigEndian, uint32(len(keyTagBytes)))
+						checkError(err)
 						//err = flvFile_vsr.WriteTagDirect(keyTagBytes)
 						//checkError(err)
 
@@ -159,7 +163,11 @@ func processKSR(readerFsr io.ReadCloser, filename string, ssrc uint32) {
 			}
 
 			//err = flvFile_vsr.WriteTagDirect(headerFsr.TagBytes) //非IDR帧数据保持原有
-			sendFlvTag(headerFsr.TagBytes, streamEntity)
+			//sendFlvTag(headerFsr.TagBytes, streamEntity)
+			_, err := pw.Write(headerFsr.TagBytes)
+			checkError(err)
+			err = binary.Write(pw, binary.BigEndian, uint32(len(headerFsr.TagBytes)))
+			checkError(err)
 			if vhFsr.IsKeyFrame() {
 				sr.Log.WithFields(logrus.Fields{
 					"size":      headerFsr.DataSize + 11,
@@ -170,7 +178,42 @@ func processKSR(readerFsr io.ReadCloser, filename string, ssrc uint32) {
 
 		}
 	}()
-	return
+	return rr
+}
+
+func readKSR(rr io.ReadCloser, ssrc uint32) {
+	var streamEntity *StreamEntity
+	if val, f := ChannelMap.Get(ssrc); f {
+		streamEntity = val.(*StreamEntity)
+	} else {
+		panic("err sr")
+	}
+
+	//flvFile_vsr, _ := CreateFile(outfile)
+	//pw.Write(HEADER_BYTES)
+
+	go func() {
+		var tmpBuf = make([]byte, 13) //去除头部字节
+		_, err := io.ReadFull(rr, tmpBuf)
+		checkError(err)
+
+		for {
+			headerFsr, _, _ := sr.ReadTag(rr)
+			//time.Sleep(time.Second)
+			//sr.ParseHeader(headerFsr, dataFsr)
+			//vhFsr, _ := headerFsr.PktHeader.(sr.VideoPacketHeader)
+			sendFlvTag(headerFsr.TagBytes, streamEntity)
+
+			//if headerFsr.TagType == byte(9) {
+			//
+			//	if vh, ok := headerFsr.PktHeader.(sr.VideoPacketHeader); ok {
+			//		if vh.IsKeyFrame() {
+			//			fmt.Println(len(dataFsr))
+			//		}
+			//	}
+			//}
+		}
+	}()
 }
 
 // OnReceived 自定义消息处理方法
@@ -284,11 +327,13 @@ func sendInitialMessage() {
 		msg.WriteString("0001") // 标志位
 
 		QuicPort, err := strconv.ParseInt(conf.QUIC_ADDR[1:], 10, 16)
-		binary.Write(msg, binary.BigEndian, uint16(QuicPort))
+		checkError(err)
+		err = binary.Write(msg, binary.BigEndian, uint16(QuicPort))
 		checkError(err)
 
 		ApiPort, err := strconv.ParseInt(conf.API_ADDR[1:], 10, 16)
-		binary.Write(msg, binary.BigEndian, uint16(ApiPort))
+		checkError(err)
+		err = binary.Write(msg, binary.BigEndian, uint16(ApiPort))
 		checkError(err)
 
 		_, err = udpConn.(*net.UDPConn).Write(msg.Bytes())

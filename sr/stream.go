@@ -3,15 +3,12 @@ package sr
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 	"io"
 	"io/ioutil"
 	"net/http"
 )
-
-var seqBytes []byte
 
 type Config struct {
 	Ow    int    //原视频宽
@@ -27,44 +24,45 @@ var Conf *Config
 func GetVideoSize(fileName string) (int, int) {
 	//return 160, 90
 	return 320, 180
-	Log.Infof("Getting video size for", fileName)
-	data, err := ffmpeg.Probe(fileName)
-	if err != nil {
-		panic(err)
-	}
-	//log.Println("got video info", data)
-	type VideoInfo struct {
-		Streams []struct {
-			CodecType string `json:"codec_type"`
-			Width     int
-			Height    int
-		} `json:"streams"`
-	}
-	vInfo := &VideoInfo{}
-	err = json.Unmarshal([]byte(data), vInfo)
-	if err != nil {
-		panic(err)
-	}
-	for _, s := range vInfo.Streams {
-		if s.CodecType == "video" {
-			return s.Width, s.Height
-		}
-	}
-	return 0, 0
+	//Log.Infof("Getting video size for", fileName)
+	//data, err := ffmpeg.Probe(fileName)
+	//if err != nil {
+	//	panic(err)
+	//}
+	////log.Println("got video info", data)
+	//type VideoInfo struct {
+	//	Streams []struct {
+	//		CodecType string `json:"codec_type"`
+	//		Width     int
+	//		Height    int
+	//	} `json:"streams"`
+	//}
+	//vInfo := &VideoInfo{}
+	//err = json.Unmarshal([]byte(data), vInfo)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//for _, s := range vInfo.Streams {
+	//	if s.CodecType == "video" {
+	//		return s.Width, s.Height
+	//	}
+	//}
+	//return 0, 0
 }
 
-func TransToFlv(infileName string, writer io.WriteCloser) <-chan error {
+func TransToFlv(reader io.ReadCloser, writer io.WriteCloser) <-chan error {
 	Log.Infof("Starting transToFlv")
 	done := make(chan error)
 	go func() {
-		err := ffmpeg.Input(infileName).
+		err := ffmpeg.Input("pipe:").
 			Output("pipe:",
 				ffmpeg.KwArgs{
 					"vcodec": "copy", "format": "flv", "pix_fmt": "yuv420p",
 				}).
 			WithOutput(writer).
+			WithInput(reader).
 			Run()
-		Log.Infof("transToFlv done")
+		Log.Warnf("transToFlv done")
 		_ = writer.Close()
 		done <- err
 		close(done)
@@ -83,7 +81,7 @@ func FSR(infileName string, writer io.WriteCloser) <-chan error {
 				}).
 			WithOutput(writer).
 			Run()
-		Log.Infof("ffmpeg sr done")
+		Log.Warnf("ffmpeg sr done")
 		//_ = writer.Close()
 		done <- err
 		close(done)
@@ -116,9 +114,11 @@ func ReadKeyFrame(keyframeBytes []byte, seqBytes []byte) []byte {
 
 	tmpBuf := bytes.NewBuffer(HEADER_BYTES)
 	tmpBuf.Write(seqBytes)
-	binary.Write(tmpBuf, binary.BigEndian, uint32(len(seqBytes)))
+	err := binary.Write(tmpBuf, binary.BigEndian, uint32(len(seqBytes)))
+	CheckErr(err)
 	tmpBuf.Write(keyframeBytes)
-	binary.Write(tmpBuf, binary.BigEndian, uint32(len(keyframeBytes)))
+	err = binary.Write(tmpBuf, binary.BigEndian, uint32(len(keyframeBytes)))
+	CheckErr(err)
 
 	done := clipPreKeyframe(bytes.NewReader(tmpBuf.Bytes()))
 	<-done
