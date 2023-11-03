@@ -53,6 +53,8 @@ type Config struct {
 	DEBUG            bool     `yaml:"debug"`
 	LOG_LEVEL        string   `yaml:"log_level"`
 	ENABLE_LOG_FILE  bool     `yaml:"enable_log_file"`
+	ENABLE_SR        bool     `yaml:"enable_sr"`
+	SR_API           string   `yaml:"sr_api"`
 }
 
 var conf = &Config{ //default config
@@ -66,6 +68,8 @@ var conf = &Config{ //default config
 	DEBUG:            false,
 	LOG_LEVEL:        "debug",
 	ENABLE_LOG_FILE:  false,
+	ENABLE_SR:        false,
+	SR_API:           "http://localhost:5000/",
 }
 
 func (conf *Config) readFromXml(src string) {

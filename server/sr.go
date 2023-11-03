@@ -1,32 +1,34 @@
 package main
 
 import (
-	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"rtmp_rtp_flv/sr"
+	"strconv"
 )
 
 func RunSR(inFile string, ssrc uint32) {
-	fmt.Println("inFile: " + inFile)
 
 	//var err error
 	sr.InitLog()
 	w, h := sr.GetVideoSize(inFile)
 	scale := 4
 	sr.Conf = &sr.Config{w, h, scale, w * scale, h * scale,
-		"http://10.112.90.187:5000/"}
-	//"http://127.0.0.1:5000/"}
-	log.Println(w, h)
+		conf.SR_API}
+	sr.Log.WithFields(logrus.Fields{
+		"video source:": inFile,
+		"video size":    strconv.Itoa(w) + "x" + strconv.Itoa(h),
+	}).Infof("RunSR of KeyFrame")
 
 	pr, pw := io.Pipe()
 	sr.InitKeyProcess() //对超分后的图片进行h264编码的服务
 
-	_ = sr.FSR(inFile, pw)
+	_ = sr.FSR(inFile, pw) // ffmpeg 扩大分辨率
 
 	//_, fileName := filepath.Split(inFile)
 	//rawName := strings.Split(fileName, ".")[0]
-	rr := processKSR(pr) // 提取关键帧
+	rr := processKSR(pr) // pr -> 替换关键帧、转码 -> rr
 
-	readKSR(rr, ssrc)
+	readKSR(rr, ssrc) // rr -> 读取转码后的视频的Tag并发送
 
 }

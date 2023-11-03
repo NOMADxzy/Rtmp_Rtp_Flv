@@ -22,8 +22,8 @@ type Config struct {
 var Conf *Config
 
 func GetVideoSize(fileName string) (int, int) {
-	//return 160, 90
 	return 320, 180
+	//return 160, 90
 	//Log.Infof("Getting video size for", fileName)
 	//data, err := ffmpeg.Probe(fileName)
 	//if err != nil {

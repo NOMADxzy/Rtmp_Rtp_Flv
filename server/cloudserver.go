@@ -29,7 +29,6 @@ var VERSION = "master"
 var SSRC = uint32(1020303)
 var ChannelMap *hashmap.Map // key:SSRC，val:streamEntity
 var UdpConns *arraylist.List
-var running bool
 var seqBytes []byte
 
 type StreamEntity struct {
@@ -82,11 +81,9 @@ func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
 	ssrc := addChannel(stream.Channel()).SSRC
 	stream.SetSsrc(ssrc)
 	log.Infof("NewStreamCreated SSRC = %v\n", SSRC)
-	streamNumberCount.Inc()
-
-	if !running {
+	streamNumberCount.Inc() //监控指标，无需关注
+	if conf.ENABLE_SR {
 		RunSR("rtmp://127.0.0.1:1935/live/"+stream.Channel(), ssrc)
-		running = true
 	}
 }
 
@@ -102,13 +99,13 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	log.Infof("StreamClosed SSRC = %v\n", stream.Ssrc())
 }
 
-func processKSR(readerFsr io.ReadCloser) *io.PipeReader {
+func processKSR(readerFsr io.ReadCloser) *io.PipeReader { //readerFsr(原视频) -> pw(替换关键帧) -> pr(读取) -> rw(转码) -> rr输出
 
 	total_P, total_I, part_P := 1, 0, 0 //监测
 
 	pr, pw := io.Pipe()
 	rr, rw := io.Pipe()
-	sr.TransToFlv(pr, rw)
+	sr.TransToFlv(pr, rw) //将替换关键帧后的流再编码一次，不然大部分播放器无法播放 | 数据流向为 readerFsr(原视频) -> pw(替换关键帧) -> pr(读取) -> rw(转码) -> rr输出
 	_, err := pw.Write(sr.HEADER_BYTES)
 	checkError(err)
 
@@ -181,16 +178,13 @@ func processKSR(readerFsr io.ReadCloser) *io.PipeReader {
 	return rr
 }
 
-func readKSR(rr io.ReadCloser, ssrc uint32) {
+func readKSR(rr io.ReadCloser, ssrc uint32) { // rr中为超分处理后的视频，取出每个flv tag依次发送到边缘
 	var streamEntity *StreamEntity
 	if val, f := ChannelMap.Get(ssrc); f {
 		streamEntity = val.(*StreamEntity)
 	} else {
 		panic("err sr")
 	}
-
-	//flvFile_vsr, _ := CreateFile(outfile)
-	//pw.Write(HEADER_BYTES)
 
 	go func() {
 		var tmpBuf = make([]byte, 13) //去除头部字节
@@ -199,25 +193,18 @@ func readKSR(rr io.ReadCloser, ssrc uint32) {
 
 		for {
 			headerFsr, _, _ := sr.ReadTag(rr)
-			//time.Sleep(time.Second)
-			//sr.ParseHeader(headerFsr, dataFsr)
-			//vhFsr, _ := headerFsr.PktHeader.(sr.VideoPacketHeader)
+
 			sendFlvTag(headerFsr.TagBytes, streamEntity)
 
-			//if headerFsr.TagType == byte(9) {
-			//
-			//	if vh, ok := headerFsr.PktHeader.(sr.VideoPacketHeader); ok {
-			//		if vh.IsKeyFrame() {
-			//			fmt.Println(len(dataFsr))
-			//		}
-			//	}
-			//}
 		}
 	}()
 }
 
 // OnReceived 自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
+	if conf.ENABLE_SR {
+		return //在sr模块接受视频流，无需在此处操作
+	}
 	var streamEntity *StreamEntity
 	val, f := ChannelMap.Get(s.Ssrc())
 	if !f {
@@ -246,7 +233,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	}
 
 	// 发送flv_tag，超长则分片发送
-	//sendFlvTag(flvTag, streamEntity)
+	sendFlvTag(flvTag, streamEntity)
 
 	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
 	//fmt.Println(flv_tag)
@@ -260,7 +247,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	}
 }
 
-func sendFlvTag(flvTag []byte, streamEntity *StreamEntity) {
+func sendFlvTag(flvTag []byte, streamEntity *StreamEntity) { // 将flvTag发送到某个SSRC对应的流上
 	flv_tag_len := len(flvTag)
 	if flv_tag_len <= MAX_RTP_PAYLOAD_LEN {
 		rp := rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
@@ -292,20 +279,6 @@ func sendFlvTag(flvTag []byte, streamEntity *StreamEntity) {
 		}
 	}
 }
-
-//	func sendPacket(rp *rtp.DataPacket) {
-//		if USE_MULTICAST { //组播
-//			sendPacketMulticast(rp)
-//		} else { //单播
-//			r := rand.Intn(1000)
-//			if float64(r)/1000.0 >= PACKET_LOSS_RATE {
-//				_, err := rsLocal.WriteData(rp)
-//				if err != nil {
-//					return
-//				}
-//			}
-//		}
-//	}
 
 // 枚举所有的 UdpConns 列表，发送当前 rp.Buffer()[:rp.InUse()] 数据
 func sendPacket(rp *rtp.DataPacket) {
