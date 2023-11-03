@@ -122,8 +122,6 @@ func ReadKeyFrame(keyframeBytes []byte, seqBytes []byte) []byte {
 
 	done := clipPreKeyframe(bytes.NewReader(tmpBuf.Bytes()))
 	<-done
-	a := buf.Bytes()
-	fmt.Println(len(a))
 	body := PostImg(buf.Bytes())
 
 	encToH264(body) //会在keyChan中产生相应的超分tag

@@ -10,3 +10,5 @@ api_addr: :8090
 debug: false
 log_level: debug
 enable_log_file: false
+enable_sr: false
+sr_api: http://localhost:5000/

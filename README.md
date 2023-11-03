@@ -1,6 +1,7 @@
 # 云端节点
 
-![system.png](https://s2.loli.net/2022/10/04/q2GfX9DdxPhsACH.png)
+![sys.png](pics/system.png)
+![req.png](pics/req.png)
 
 
 ![go](https://img.shields.io/badge/go-18.0+-blue.svg?style=plastic)
