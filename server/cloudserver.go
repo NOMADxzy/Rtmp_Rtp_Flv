@@ -10,6 +10,7 @@ import (
 	"github.com/NOMADxzy/livego/protocol/rtmp"
 	"github.com/emirpasic/gods/lists/arraylist"
 	"github.com/quic-go/quic-go"
+	"io"
 	"math"
 	"net"
 	"net/rtp"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/emirpasic/gods/maps/hashmap"
 	logrus "github.com/sirupsen/logrus"
+	"rtmp_rtp_flv/sr"
 )
 
 var videoDataSize int64
@@ -27,6 +29,7 @@ var VERSION = "master"
 var SSRC = uint32(1020303)
 var ChannelMap *hashmap.Map // key:SSRC，val:streamEntity
 var UdpConns *arraylist.List
+var seqBytes []byte
 
 type StreamEntity struct {
 	strLocalIdx uint32
@@ -75,10 +78,13 @@ type MyMessageHandler struct{}
 
 // OnStreamCreated 自定义流创建方法
 func (handler MyMessageHandler) OnStreamCreated(stream *rtmp.Stream) {
-	SSRC := addChannel(stream.Channel()).SSRC
-	stream.SetSsrc(SSRC)
+	ssrc := addChannel(stream.Channel()).SSRC
+	stream.SetSsrc(ssrc)
 	log.Infof("NewStreamCreated SSRC = %v\n", SSRC)
-	streamNumberCount.Inc()
+	streamNumberCount.Inc() //监控指标，无需关注
+	if conf.ENABLE_SR {
+		RunSR("rtmp://127.0.0.1:1935/live/"+stream.Channel(), ssrc)
+	}
 }
 
 // OnStreamClosed 自定义流停止方法
@@ -93,8 +99,112 @@ func (handler MyMessageHandler) OnStreamClosed(stream *rtmp.Stream) {
 	log.Infof("StreamClosed SSRC = %v\n", stream.Ssrc())
 }
 
+func processKSR(readerFsr io.ReadCloser) *io.PipeReader { //readerFsr(原视频) -> pw(替换关键帧) -> pr(读取) -> rw(转码) -> rr输出
+
+	total_P, total_I, part_P := 1, 0, 0 //监测
+
+	pr, pw := io.Pipe()
+	rr, rw := io.Pipe()
+	sr.TransToFlv(pr, rw) //将替换关键帧后的流再编码一次，不然大部分播放器无法播放 | 数据流向为 readerFsr(原视频) -> pw(替换关键帧) -> pr(读取) -> rw(转码) -> rr输出
+	_, err := pw.Write(sr.HEADER_BYTES)
+	checkError(err)
+
+	go func() {
+		var tmpBuf = make([]byte, 13) //去除头部字节
+		_, err := io.ReadFull(readerFsr, tmpBuf)
+		checkError(err)
+
+		//flvFile_vsr, _ := CreateFile(outfile)
+
+		for id := 0; ; id += 1 {
+			headerFsr, dataFsr, _ := sr.ReadTag(readerFsr)
+
+			sr.ParseHeader(headerFsr, dataFsr)
+			vhFsr, _ := headerFsr.PktHeader.(sr.VideoPacketHeader)
+
+			if headerFsr.TagType == byte(9) {
+
+				if vh, ok := headerFsr.PktHeader.(sr.VideoPacketHeader); ok {
+					checkError(err)
+
+					if vh.IsSeq() {
+						seqBytes = headerFsr.TagBytes
+
+					} else if vh.IsKeyFrame() {
+						keyTagBytes := sr.ReadKeyFrame(headerFsr.TagBytes, seqBytes)
+						//sendFlvTag(keyTagBytes, streamEntity)
+						_, err := pw.Write(keyTagBytes)
+						checkError(err)
+						err = binary.Write(pw, binary.BigEndian, uint32(len(keyTagBytes)))
+						checkError(err)
+						//err = flvFile_vsr.WriteTagDirect(keyTagBytes)
+						//checkError(err)
+
+						total_I += 1
+						sr.Log.WithFields(logrus.Fields{
+							"new_size":       len(keyTagBytes),
+							"pre_size":       headerFsr.DataSize + 11,
+							"is_KeyFrame":    vhFsr.IsKeyFrame(),
+							"numBeforeLastI": part_P,
+							"total I":        total_I,
+							"I Proportion":   float32(total_I) / float32(total_P),
+						}).Infof("instead keyFrame")
+						part_P = 0
+						continue
+					} else {
+						//是P帧
+						total_P += 1
+						part_P += 1
+					}
+				}
+			}
+
+			//err = flvFile_vsr.WriteTagDirect(headerFsr.TagBytes) //非IDR帧数据保持原有
+			//sendFlvTag(headerFsr.TagBytes, streamEntity)
+			_, err := pw.Write(headerFsr.TagBytes)
+			checkError(err)
+			err = binary.Write(pw, binary.BigEndian, uint32(len(headerFsr.TagBytes)))
+			checkError(err)
+			if vhFsr.IsKeyFrame() {
+				sr.Log.WithFields(logrus.Fields{
+					"size":      headerFsr.DataSize + 11,
+					"timestamp": headerFsr.Timestamp,
+				}).Warnf("ignore key frame")
+			}
+			checkError(err)
+
+		}
+	}()
+	return rr
+}
+
+func readKSR(rr io.ReadCloser, ssrc uint32) { // rr中为超分处理后的视频，取出每个flv tag依次发送到边缘
+	var streamEntity *StreamEntity
+	if val, f := ChannelMap.Get(ssrc); f {
+		streamEntity = val.(*StreamEntity)
+	} else {
+		panic("err sr")
+	}
+
+	go func() {
+		var tmpBuf = make([]byte, 13) //去除头部字节
+		_, err := io.ReadFull(rr, tmpBuf)
+		checkError(err)
+
+		for {
+			headerFsr, _, _ := sr.ReadTag(rr)
+
+			sendFlvTag(headerFsr.TagBytes, streamEntity)
+
+		}
+	}()
+}
+
 // OnReceived 自定义消息处理方法
 func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
+	if conf.ENABLE_SR {
+		return //在sr模块接受视频流，无需在此处操作
+	}
 	var streamEntity *StreamEntity
 	val, f := ChannelMap.Get(s.Ssrc())
 	if !f {
@@ -102,7 +212,6 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	} else {
 		streamEntity = val.(*StreamEntity)
 	}
-
 	// metaData 相当于 flvTagBody
 	metadata := message.Data
 	var flvTag []byte
@@ -124,10 +233,24 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	}
 
 	// 发送flv_tag，超长则分片发送
+	sendFlvTag(flvTag, streamEntity)
+
+	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
+	//fmt.Println(flv_tag)
+	if message.TimeStamp > 0 && s.StartTime == 0 { // 记录时间，最后一个timestamp为0的flvTag才是真正的startTime
+		s.StartTime = time.Now().UnixMilli() - int64(message.TimeStamp)
+	}
+
+	if streamEntity.flvFile != nil { // 录制
+		err := streamEntity.flvFile.WriteTagDirect(flvTag)
+		checkError(err)
+	}
+}
+
+func sendFlvTag(flvTag []byte, streamEntity *StreamEntity) { // 将flvTag发送到某个SSRC对应的流上
 	flv_tag_len := len(flvTag)
-	var rp *rtp.DataPacket
 	if flv_tag_len <= MAX_RTP_PAYLOAD_LEN {
-		rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
+		rp := rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 		rp.SetMarker(true)
 		rp.SetPayload(flvTag)
 		rp.SetPayloadType(FLV_PAYLOAD_TYPE)
@@ -139,7 +262,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 	} else {
 		slice_num := int(math.Ceil(float64(flv_tag_len) / float64(MAX_RTP_PAYLOAD_LEN)))
 		for i := 0; i < slice_num; i++ {
-			rp = rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
+			rp := rsLocal.NewDataPacketForStream(streamEntity.strLocalIdx, streamEntity.timestamp)
 			last_slice := i == slice_num-1
 			rp.SetMarker(last_slice)
 			if !last_slice {
@@ -155,32 +278,7 @@ func (handler MyMessageHandler) OnReceived(s *rtmp.Stream, message *av.Packet) {
 			streamEntity.RtpQueue.packetQueue <- rp //入缓存
 		}
 	}
-
-	//fmt.Println("rtp seq:", rp.Sequence(), ",payload size: ", len(metadata)+11, ",rtp timestamp: ", timestamp)
-	//fmt.Println(flv_tag)
-	if message.TimeStamp > 0 && s.StartTime == 0 { // 记录时间，最后一个timestamp为0的flvTag才是真正的startTime
-		s.StartTime = time.Now().UnixMilli() - int64(message.TimeStamp)
-	}
-
-	if streamEntity.flvFile != nil { // 录制
-		err := streamEntity.flvFile.WriteTagDirect(flvTag)
-		checkError(err)
-	}
 }
-
-//	func sendPacket(rp *rtp.DataPacket) {
-//		if USE_MULTICAST { //组播
-//			sendPacketMulticast(rp)
-//		} else { //单播
-//			r := rand.Intn(1000)
-//			if float64(r)/1000.0 >= PACKET_LOSS_RATE {
-//				_, err := rsLocal.WriteData(rp)
-//				if err != nil {
-//					return
-//				}
-//			}
-//		}
-//	}
 
 // 枚举所有的 UdpConns 列表，发送当前 rp.Buffer()[:rp.InUse()] 数据
 func sendPacket(rp *rtp.DataPacket) {
@@ -202,11 +300,13 @@ func sendInitialMessage() {
 		msg.WriteString("0001") // 标志位
 
 		QuicPort, err := strconv.ParseInt(conf.QUIC_ADDR[1:], 10, 16)
-		binary.Write(msg, binary.BigEndian, uint16(QuicPort))
+		checkError(err)
+		err = binary.Write(msg, binary.BigEndian, uint16(QuicPort))
 		checkError(err)
 
 		ApiPort, err := strconv.ParseInt(conf.API_ADDR[1:], 10, 16)
-		binary.Write(msg, binary.BigEndian, uint16(ApiPort))
+		checkError(err)
+		err = binary.Write(msg, binary.BigEndian, uint16(ApiPort))
 		checkError(err)
 
 		_, err = udpConn.(*net.UDPConn).Write(msg.Bytes())

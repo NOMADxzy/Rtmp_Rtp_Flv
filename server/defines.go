@@ -53,12 +53,14 @@ type Config struct {
 	DEBUG            bool     `yaml:"debug"`
 	LOG_LEVEL        string   `yaml:"log_level"`
 	ENABLE_LOG_FILE  bool     `yaml:"enable_log_file"`
+	ENABLE_SR        bool     `yaml:"enable_sr"`
+	SR_API           string   `yaml:"sr_api"`
 }
 
 var conf = &Config{ //default config
 	RTP_CACHE_SIZE:   5000,
 	QUIC_ADDR:        ":4242",
-	CLIENT_ADDR_LIST: []string{"127.0.0.1:5222"},
+	CLIENT_ADDR_LIST: []string{"239.0.0.1:5222"},
 	ENABLE_RECORD:    false,
 	RTP_PORT:         5220,
 	RTMP_ADDR:        ":1935",
@@ -66,6 +68,8 @@ var conf = &Config{ //default config
 	DEBUG:            false,
 	LOG_LEVEL:        "debug",
 	ENABLE_LOG_FILE:  false,
+	ENABLE_SR:        false,
+	SR_API:           "http://localhost:5000/",
 }
 
 func (conf *Config) readFromXml(src string) {
